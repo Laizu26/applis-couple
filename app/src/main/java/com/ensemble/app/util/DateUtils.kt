@@ -35,3 +35,11 @@ fun hourOffsetFromLocal(zoneId: String): Int? = runCatching {
     val local = java.time.ZoneId.systemDefault().rules.getOffset(now)
     (target.totalSeconds - local.totalSeconds) / 3600
 }.getOrNull()
+
+/** Formate une durée en mm:ss (ex: 65000 -> "1:05"). */
+fun formatDuration(durationMs: Long): String {
+    val totalSeconds = durationMs / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
+}

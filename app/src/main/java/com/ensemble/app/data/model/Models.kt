@@ -52,6 +52,7 @@ data class DecryptedEvent(
 object MessageType {
     const val TEXT = "TEXT"
     const val PHOTO = "PHOTO"
+    const val AUDIO = "AUDIO"
 }
 
 data class ChatMessage(
@@ -62,6 +63,9 @@ data class ChatMessage(
     val cipherTextBase64: String = "",
     val photoStoragePath: String? = null,
     val photoIvBase64: String? = null,
+    val audioStoragePath: String? = null,
+    val audioIvBase64: String? = null,
+    val audioDurationMs: Long? = null,
     val reactions: Map<String, String> = emptyMap(),
     val editedAt: Long? = null,
     val timestamp: Long = 0L
@@ -75,6 +79,9 @@ data class DecryptedMessage(
     val text: String,
     val photoStoragePath: String?,
     val photoIvBase64: String?,
+    val audioStoragePath: String?,
+    val audioIvBase64: String?,
+    val audioDurationMs: Long?,
     val reactions: Map<String, String>,
     val editedAt: Long?,
     val timestamp: Long
@@ -88,6 +95,27 @@ data class CouplePhoto(
     val captionIvBase64: String? = null,
     val captionCipherBase64: String? = null,
     val timestamp: Long = 0L
+)
+
+data class Memory(
+    val id: String = "",
+    val authorId: String = "",
+    val textIv: String = "",
+    val textCipher: String = "",
+    val photoStoragePath: String? = null,
+    val photoIvBase64: String? = null,
+    val memoryDate: Long = 0L,
+    val createdAt: Long = 0L
+)
+
+data class DecryptedMemory(
+    val id: String,
+    val authorId: String,
+    val text: String,
+    val photoStoragePath: String?,
+    val photoIvBase64: String?,
+    val memoryDate: Long,
+    val createdAt: Long
 )
 
 data class UserProfile(

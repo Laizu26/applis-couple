@@ -31,6 +31,8 @@ import com.ensemble.app.ui.calendar.CalendarScreen
 import com.ensemble.app.ui.calendar.CalendarViewModel
 import com.ensemble.app.ui.home.HomeScreen
 import com.ensemble.app.ui.home.HomeViewModel
+import com.ensemble.app.ui.journal.JournalScreen
+import com.ensemble.app.ui.journal.JournalViewModel
 import com.ensemble.app.ui.lock.AppLockGate
 import com.ensemble.app.ui.messages.MessagesScreen
 import com.ensemble.app.ui.messages.MessagesViewModel
@@ -50,7 +52,7 @@ private sealed class Tab(val route: String, val labelRes: Int, val icon: android
 }
 
 private val tabs = listOf(Tab.Home, Tab.Messages, Tab.Photos, Tab.More)
-private val moreSubRoutes = setOf("calendar", "settings")
+private val moreSubRoutes = setOf("calendar", "journal", "settings")
 
 @Composable
 fun EnsembleRoot(container: AppContainer, biometricAuthenticator: BiometricAuthenticator) {
@@ -148,6 +150,7 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
             composable(Tab.More.route) {
                 MoreScreen(
                     onCalendarClick = { navController.navigate("calendar") },
+                    onJournalClick = { navController.navigate("journal") },
                     onSettingsClick = { navController.navigate("settings") }
                 )
             }
@@ -156,6 +159,12 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
                     factory = viewModelFactory { initializer { CalendarViewModel(container, coupleId, myUid) } }
                 )
                 CalendarScreen(vm)
+            }
+            composable("journal") {
+                val vm: JournalViewModel = viewModel(
+                    factory = viewModelFactory { initializer { JournalViewModel(container, coupleId, myUid) } }
+                )
+                JournalScreen(vm)
             }
             composable("settings") {
                 val vm: SettingsViewModel = viewModel(

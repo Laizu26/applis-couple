@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -15,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.ensemble.app.R
 
 @Composable
-fun MoreScreen(onCalendarClick: () -> Unit, onSettingsClick: () -> Unit) {
+fun MoreScreen(onCalendarClick: () -> Unit, onJournalClick: () -> Unit, onSettingsClick: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
         Text(
             stringResource(R.string.nav_more),
@@ -26,6 +27,12 @@ fun MoreScreen(onCalendarClick: () -> Unit, onSettingsClick: () -> Unit) {
             icon = Icons.Default.CalendarMonth,
             label = stringResource(R.string.more_calendar),
             onClick = onCalendarClick
+        )
+        HorizontalDivider()
+        MoreItem(
+            icon = Icons.Default.AutoStories,
+            label = stringResource(R.string.more_journal),
+            onClick = onJournalClick
         )
         HorizontalDivider()
         MoreItem(

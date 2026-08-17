@@ -58,6 +58,12 @@ service cloud.firestore {
         allow update, delete: if isCoupleMember(coupleId);
       }
 
+      match /memories/{memoryId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if isCoupleMember(coupleId);
+      }
+
       // Indicateur "en train d'écrire" : chacun n'écrit que son propre document
       match /typing/{uid} {
         allow read: if isCoupleMember(coupleId);

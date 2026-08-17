@@ -7,6 +7,9 @@ import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.CalendarEvent
 import com.ensemble.app.data.model.DecryptedEvent
 import com.ensemble.app.data.model.EventCategory
+import androidx.glance.appwidget.updateAll
+import com.ensemble.app.widget.CountdownWidget
+import com.ensemble.app.widget.WidgetPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -63,6 +66,14 @@ class HomeViewModel(
                         meetingDateMillis = featured?.dateMillis
                     )
                 }
+
+                WidgetPrefs.save(
+                    container.appContext,
+                    featured?.title,
+                    featured?.dateMillis,
+                    isPast = featured != null && featured.dateMillis < now
+                )
+                runCatching { CountdownWidget().updateAll(container.appContext) }
             }
         }
     }

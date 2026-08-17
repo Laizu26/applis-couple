@@ -1,5 +1,7 @@
 package com.ensemble.app.ui.messages
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,11 +13,15 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,13 +35,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
+import com.ensemble.app.data.audio.VoiceRecorder
 import com.ensemble.app.data.model.DecryptedMessage
 import com.ensemble.app.data.model.MessageType
 import com.ensemble.app.ui.theme.BubbleMine
 import com.ensemble.app.ui.theme.BubbleTheirs
+import com.ensemble.app.util.formatDuration
 import com.ensemble.app.util.formatMessageTime
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val QUICK_REACTIONS = listOf("❤️", "😂", "😮", "😢", "👍")
@@ -45,6 +55,7 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val partnerTyping by viewModel.partnerTyping.collectAsStateWithLifecycle()
     val partnerReadTimestamp by viewModel.partnerReadTimestamp.collectAsStateWithLifecycle()
+    val playingMessageId by viewModel.playingMessageId.collectAsStateWithLifecycle()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -53,6 +64,21 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
     var editingMessage by remember { mutableStateOf<DecryptedMessage?>(null) }
     var deletingMessageId by remember { mutableStateOf<String?>(null) }
     var fullScreenPhoto by remember { mutableStateOf<DecryptedMessage?>(null) }
+
+    val voiceRecorder = remember { VoiceRecorder(context) }
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingElapsedMs by remember { mutableStateOf(0L) }
+    val recordAudioPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) { voiceRecorder.start(); isRecording = true } }
+
+    LaunchedEffect(isRecording) {
+        val start = System.currentTimeMillis()
+        while (isRecording) {
+            recordingElapsedMs = System.currentTimeMillis() - start
+            delay(200)
+        }
+    }
 
     val myLastMessageId = uiState.messages.lastOrNull { it.senderId == viewModel.currentUserId }?.id
     val lastMessageIsSeen = uiState.messages.lastOrNull { it.senderId == viewModel.currentUserId }
@@ -97,9 +123,11 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
                     message = message,
                     isMine = isMine,
                     showSeen = isMine && message.id == myLastMessageId && lastMessageIsSeen,
+                    isPlaying = playingMessageId == message.id,
                     loadBitmap = { viewModel.loadPhotoBitmap(message) },
                     onLongPress = { actionsForMessage = message },
-                    onPhotoClick = { fullScreenPhoto = message }
+                    onPhotoClick = { fullScreenPhoto = message },
+                    onTogglePlayback = { viewModel.togglePlayback(message) }
                 )
             }
             if (partnerTyping) {
@@ -107,27 +135,72 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = {
-                pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }) {
-                Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.photos_add))
+        if (isRecording) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = {
+                    voiceRecorder.cancel()
+                    isRecording = false
+                }) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.messages_cancel))
+                }
+                Box(
+                    modifier = Modifier.size(10.dp).background(MaterialTheme.colorScheme.error, CircleShape)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    formatDuration(recordingElapsedMs),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = {
+                    isRecording = false
+                    val result = voiceRecorder.stop()
+                    if (result != null) viewModel.sendVoiceNote(result.first, result.second)
+                }) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Envoyer", tint = MaterialTheme.colorScheme.primary)
+                }
             }
-            OutlinedTextField(
-                value = uiState.draft,
-                onValueChange = viewModel::onDraftChange,
-                placeholder = { Text(stringResource(R.string.messages_hint)) },
-                shape = MaterialTheme.shapes.extraLarge,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = viewModel::sendMessage) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Envoyer", tint = MaterialTheme.colorScheme.primary)
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = {
+                    pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.photos_add))
+                }
+                OutlinedTextField(
+                    value = uiState.draft,
+                    onValueChange = viewModel::onDraftChange,
+                    placeholder = { Text(stringResource(R.string.messages_hint)) },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(4.dp))
+                if (uiState.draft.isBlank()) {
+                    IconButton(onClick = {
+                        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                            PackageManager.PERMISSION_GRANTED
+                        if (granted) {
+                            voiceRecorder.start()
+                            isRecording = true
+                        } else {
+                            recordAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }) {
+                        Icon(Icons.Default.Mic, contentDescription = "Note vocale", tint = MaterialTheme.colorScheme.primary)
+                    }
+                } else {
+                    IconButton(onClick = viewModel::sendMessage) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Envoyer", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
         }
     }
@@ -191,9 +264,11 @@ private fun MessageBubble(
     message: DecryptedMessage,
     isMine: Boolean,
     showSeen: Boolean,
+    isPlaying: Boolean,
     loadBitmap: suspend () -> androidx.compose.ui.graphics.ImageBitmap?,
     onLongPress: () -> Unit,
-    onPhotoClick: () -> Unit
+    onPhotoClick: () -> Unit,
+    onTogglePlayback: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -238,6 +313,21 @@ private fun MessageBubble(
                             message.text,
                             color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+                } else if (message.type == MessageType.AUDIO) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onTogglePlayback, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = if (isMine) Color.White else MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            formatDuration(message.audioDurationMs ?: 0L),
+                            color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 } else {

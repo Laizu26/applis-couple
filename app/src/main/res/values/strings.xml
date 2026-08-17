@@ -67,11 +67,20 @@
     <string name="settings_app_lock">Verrouiller l\'app</string>
     <string name="settings_app_lock_explain">Demande ton empreinte, visage ou code de déverrouillage à chaque ouverture de l\'app.</string>
 
+    <string name="journal_title">Journal</string>
+    <string name="journal_empty">Votre histoire commence ici</string>
+    <string name="journal_add">Ajouter un souvenir</string>
+    <string name="journal_text_hint">Racontez ce souvenir…</string>
+    <string name="journal_add_photo">Ajouter une photo</string>
+    <string name="journal_remove_photo">Retirer la photo</string>
+    <string name="journal_delete_confirm">Supprimer ce souvenir ?</string>
+
     <string name="nav_home">Accueil</string>
     <string name="nav_messages">Messages</string>
     <string name="nav_photos">Photos</string>
     <string name="nav_settings">Réglages</string>
     <string name="nav_more">Plus</string>
     <string name="more_calendar">Calendrier</string>
+    <string name="more_journal">Journal de souvenirs</string>
     <string name="more_settings">Réglages</string>
 </resources>

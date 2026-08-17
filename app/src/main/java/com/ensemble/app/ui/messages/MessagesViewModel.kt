@@ -1,10 +1,12 @@
 package com.ensemble.app.ui.messages
 
+import android.media.MediaPlayer
 import android.util.Base64
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ensemble.app.data.AppContainer
+import com.ensemble.app.data.audio.ByteArrayMediaDataSource
 import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.ChatMessage
 import com.ensemble.app.data.model.DecryptedMessage
@@ -44,9 +46,13 @@ class MessagesViewModel(
 
     val currentUserId: String get() = myUid
 
+    private val _playingMessageId = MutableStateFlow<String?>(null)
+    val playingMessageId: StateFlow<String?> = _playingMessageId
+
     private var partnerUid: String? = null
     private var typingResetJob: Job? = null
     private var isCurrentlyTyping = false
+    private var mediaPlayer: MediaPlayer? = null
 
     init {
         viewModelScope.launch {
@@ -94,6 +100,9 @@ class MessagesViewModel(
             text = text,
             photoStoragePath = msg.photoStoragePath,
             photoIvBase64 = msg.photoIvBase64,
+            audioStoragePath = msg.audioStoragePath,
+            audioIvBase64 = msg.audioIvBase64,
+            audioDurationMs = msg.audioDurationMs,
             reactions = msg.reactions,
             editedAt = msg.editedAt,
             timestamp = msg.timestamp
@@ -183,6 +192,69 @@ class MessagesViewModel(
         val path = message.photoStoragePath ?: return null
         val iv = message.photoIvBase64 ?: return null
         return container.imageLoader.loadBitmap(path, iv)
+    }
+
+    fun sendVoiceNote(bytes: ByteArray, durationMs: Long) {
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val (iv, cipherBytes) = container.cryptoManager.encryptBytes(bytes)
+                    val messageId = UUID.randomUUID().toString()
+                    val storagePath = "couples/$coupleId/chat/$messageId.audio.enc"
+                    container.photoRepository.uploadEncryptedBytes(storagePath, cipherBytes)
+                    container.messageRepository.sendMessage(
+                        coupleId,
+                        ChatMessage(
+                            id = messageId,
+                            senderId = myUid,
+                            type = MessageType.AUDIO,
+                            audioStoragePath = storagePath,
+                            audioIvBase64 = Base64.encodeToString(iv, Base64.NO_WRAP),
+                            audioDurationMs = durationMs,
+                            timestamp = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }.onFailure { _uiState.update { it.copy(errorMessage = "Envoi de la note vocale échoué") } }
+        }
+    }
+
+    fun togglePlayback(message: DecryptedMessage) {
+        if (_playingMessageId.value == message.id) {
+            stopPlayback()
+            return
+        }
+        stopPlayback()
+        val path = message.audioStoragePath ?: return
+        val ivBase64 = message.audioIvBase64 ?: return
+        _playingMessageId.value = message.id
+        viewModelScope.launch {
+            val result = runCatching {
+                val encrypted = withContext(Dispatchers.IO) { container.photoRepository.downloadEncryptedBytes(path) }
+                val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
+                val plain = container.cryptoManager.decryptBytes(iv, encrypted)
+                val player = MediaPlayer()
+                player.setDataSource(ByteArrayMediaDataSource(plain))
+                player.setOnCompletionListener { stopPlayback() }
+                player.prepare()
+                player.start()
+                player
+            }
+            result.onSuccess { player ->
+                if (_playingMessageId.value == message.id) mediaPlayer = player else player.release()
+            }.onFailure { stopPlayback() }
+        }
+    }
+
+    private fun stopPlayback() {
+        mediaPlayer?.release()
+        mediaPlayer = null
+        _playingMessageId.value = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopPlayback()
     }
 
     fun editMessage(messageId: String, newText: String) {

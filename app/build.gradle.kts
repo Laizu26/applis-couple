@@ -69,6 +69,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.glance.appwidget)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)

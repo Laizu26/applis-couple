@@ -6,6 +6,7 @@ import com.ensemble.app.data.crypto.EncryptedImageLoader
 import com.ensemble.app.data.repository.AuthRepository
 import com.ensemble.app.data.repository.CoupleRepository
 import com.ensemble.app.data.repository.EventRepository
+import com.ensemble.app.data.repository.MemoryRepository
 import com.ensemble.app.data.repository.MessageRepository
 import com.ensemble.app.data.repository.PhotoRepository
 import com.google.firebase.Firebase
@@ -15,12 +16,14 @@ import com.google.firebase.storage.storage
 
 /** Conteneur d'injection de dépendances manuel, simple et suffisant pour une app à 2 utilisateurs. */
 class AppContainer(context: Context) {
-    val cryptoManager = CryptoManager(context.applicationContext)
+    val appContext: Context = context.applicationContext
+    val cryptoManager = CryptoManager(appContext)
 
     val authRepository = AuthRepository(Firebase.auth)
     val coupleRepository = CoupleRepository(Firebase.firestore)
     val messageRepository = MessageRepository(Firebase.firestore)
     val photoRepository = PhotoRepository(Firebase.firestore, Firebase.storage)
     val eventRepository = EventRepository(Firebase.firestore)
+    val memoryRepository = MemoryRepository(Firebase.firestore, photoRepository)
     val imageLoader = EncryptedImageLoader(photoRepository, cryptoManager)
 }
