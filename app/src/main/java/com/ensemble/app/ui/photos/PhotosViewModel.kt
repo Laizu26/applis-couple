@@ -1,12 +1,11 @@
 package com.ensemble.app.ui.photos
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ensemble.app.data.AppContainer
+import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.CouplePhoto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,8 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
-
-private const val MAX_CACHE_SIZE = 60
 
 class PhotosViewModel(
     private val container: AppContainer,
@@ -26,15 +23,8 @@ class PhotosViewModel(
     private val _photos = MutableStateFlow<List<CouplePhoto>>(emptyList())
     val photos: StateFlow<List<CouplePhoto>> = _photos
 
-    private val _isUploading = MutableStateFlow(false)
-    val isUploading: StateFlow<Boolean> = _isUploading
-
-    private val bitmapCache = java.util.Collections.synchronizedMap(
-        object : LinkedHashMap<String, ImageBitmap>(16, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?): Boolean =
-                size > MAX_CACHE_SIZE
-        }
-    )
+    private val _uploadCount = MutableStateFlow(0)
+    val uploadCount: StateFlow<Int> = _uploadCount
 
     init {
         viewModelScope.launch {
@@ -42,33 +32,38 @@ class PhotosViewModel(
         }
     }
 
-    suspend fun loadBitmap(photo: CouplePhoto): ImageBitmap? {
-        bitmapCache[photo.id]?.let { return it }
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                val encrypted = container.photoRepository.downloadEncryptedBytes(photo.storagePath)
-                val iv = android.util.Base64.decode(photo.ivBase64, android.util.Base64.NO_WRAP)
-                val plain = container.cryptoManager.decryptBytes(iv, encrypted)
-                val bitmap: Bitmap = BitmapFactory.decodeByteArray(plain, 0, plain.size)
-                bitmap.asImageBitmap()
-            }.getOrNull()?.also { bitmapCache[photo.id] = it }
+    suspend fun loadBitmap(photo: CouplePhoto): ImageBitmap? =
+        container.imageLoader.loadBitmap(photo.storagePath, photo.ivBase64)
+
+    fun decryptCaption(photo: CouplePhoto): String? {
+        val iv = photo.captionIvBase64 ?: return null
+        val cipher = photo.captionCipherBase64 ?: return null
+        return runCatching { container.cryptoManager.decryptText(EncryptedPayload(iv, cipher)) }.getOrNull()
+    }
+
+    fun addPhotos(rawBytesList: List<ByteArray>) {
+        _uploadCount.value += rawBytesList.size
+        viewModelScope.launch {
+            for (rawBytes in rawBytesList) {
+                withContext(Dispatchers.IO) {
+                    val (iv, cipherBytes) = container.cryptoManager.encryptBytes(rawBytes)
+                    val photo = CouplePhoto(
+                        id = UUID.randomUUID().toString(),
+                        uploaderId = myUid,
+                        ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP),
+                        timestamp = System.currentTimeMillis()
+                    )
+                    container.photoRepository.uploadPhoto(coupleId, photo, cipherBytes)
+                }
+                _uploadCount.value -= 1
+            }
         }
     }
 
-    fun addPhoto(rawBytes: ByteArray) {
-        _isUploading.value = true
+    fun setCaption(photo: CouplePhoto, caption: String) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                val (iv, cipherBytes) = container.cryptoManager.encryptBytes(rawBytes)
-                val photo = CouplePhoto(
-                    id = UUID.randomUUID().toString(),
-                    uploaderId = myUid,
-                    ivBase64 = android.util.Base64.encodeToString(iv, android.util.Base64.NO_WRAP),
-                    timestamp = System.currentTimeMillis()
-                )
-                container.photoRepository.uploadPhoto(coupleId, photo, cipherBytes)
-            }
-            _isUploading.value = false
+            val payload = container.cryptoManager.encryptText(caption)
+            container.photoRepository.updateCaption(coupleId, photo.id, payload.ivBase64, payload.cipherTextBase64)
         }
     }
 }

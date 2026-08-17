@@ -19,20 +19,42 @@
     <string name="pairing_enter_code">Colle le code reçu</string>
     <string name="pairing_confirm">Valider</string>
 
-    <string name="home_title">Ensemble</string>
     <string name="home_countdown_edit">Modifier</string>
     <string name="home_countdown_days">jours</string>
     <string name="home_countdown_none">Aucune date pour l\'instant</string>
     <string name="home_countdown_set">Définir la date des retrouvailles</string>
+    <string name="home_countdown_since">Ensemble depuis</string>
+    <string name="home_countdown_until">avant nos retrouvailles</string>
+    <string name="home_countdown_today">C\'est aujourd\'hui ! 🎉</string>
 
     <string name="messages_title">Messages</string>
     <string name="messages_hint">Écris quelque chose de doux…</string>
+    <string name="messages_typing">est en train d\'écrire…</string>
+    <string name="messages_seen">Vu</string>
+    <string name="messages_edited">(modifié)</string>
+    <string name="messages_edit">Modifier</string>
+    <string name="messages_delete">Supprimer</string>
+    <string name="messages_delete_confirm">Supprimer ce message ?</string>
+    <string name="messages_cancel">Annuler</string>
+    <string name="messages_save">Enregistrer</string>
 
     <string name="photos_title">Photos</string>
-    <string name="photos_add">Ajouter une photo</string>
+    <string name="photos_add">Ajouter des photos</string>
     <string name="photos_empty">Aucune photo pour l\'instant</string>
+    <string name="photos_caption_hint">Ajouter une légende…</string>
+    <string name="photos_caption_save">Enregistrer</string>
+
+    <string name="settings_title">Réglages</string>
+    <string name="settings_pairing_code">Code d\'appairage</string>
+    <string name="settings_pairing_code_explain">Utile pour relier un nouvel appareil à votre couple. À ne partager qu\'avec votre partenaire.</string>
+    <string name="settings_pairing_code_show">Afficher le code</string>
+    <string name="settings_pairing_code_hide">Masquer le code</string>
+    <string name="settings_logout">Se déconnecter</string>
+    <string name="settings_logout_confirm_title">Se déconnecter ?</string>
+    <string name="settings_logout_confirm_body">Vous devrez ressaisir votre e-mail et mot de passe pour revenir.</string>
 
     <string name="nav_home">Accueil</string>
     <string name="nav_messages">Messages</string>
     <string name="nav_photos">Photos</string>
+    <string name="nav_settings">Réglages</string>
 </resources>

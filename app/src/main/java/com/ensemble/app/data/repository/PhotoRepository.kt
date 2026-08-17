@@ -37,4 +37,18 @@ class PhotoRepository(
 
     suspend fun downloadEncryptedBytes(storagePath: String): ByteArray =
         storage.reference.child(storagePath).getBytes(MAX_PHOTO_BYTES).await()
+
+    /** Upload générique d'octets chiffrés vers un chemin Storage donné (photos et pièces jointes du chat). */
+    suspend fun uploadEncryptedBytes(storagePath: String, encryptedBytes: ByteArray) {
+        storage.reference.child(storagePath).putBytes(encryptedBytes).await()
+    }
+
+    suspend fun updateCaption(coupleId: String, photoId: String, ivBase64: String, cipherTextBase64: String) {
+        photos(coupleId).document(photoId).update(
+            mapOf(
+                "captionIvBase64" to ivBase64,
+                "captionCipherBase64" to cipherTextBase64
+            )
+        ).await()
+    }
 }

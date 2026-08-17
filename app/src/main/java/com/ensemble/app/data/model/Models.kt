@@ -11,11 +11,21 @@ data class Couple(
     val createdAt: Long = 0L
 )
 
+object MessageType {
+    const val TEXT = "TEXT"
+    const val PHOTO = "PHOTO"
+}
+
 data class ChatMessage(
     val id: String = "",
     val senderId: String = "",
+    val type: String = MessageType.TEXT,
     val ivBase64: String = "",
     val cipherTextBase64: String = "",
+    val photoStoragePath: String? = null,
+    val photoIvBase64: String? = null,
+    val reactions: Map<String, String> = emptyMap(),
+    val editedAt: Long? = null,
     val timestamp: Long = 0L
 )
 
@@ -23,7 +33,12 @@ data class ChatMessage(
 data class DecryptedMessage(
     val id: String,
     val senderId: String,
+    val type: String,
     val text: String,
+    val photoStoragePath: String?,
+    val photoIvBase64: String?,
+    val reactions: Map<String, String>,
+    val editedAt: Long?,
     val timestamp: Long
 )
 

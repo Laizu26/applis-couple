@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,14 +34,17 @@ import com.ensemble.app.ui.pairing.PairingScreen
 import com.ensemble.app.ui.pairing.PairingViewModel
 import com.ensemble.app.ui.photos.PhotosScreen
 import com.ensemble.app.ui.photos.PhotosViewModel
+import com.ensemble.app.ui.settings.SettingsScreen
+import com.ensemble.app.ui.settings.SettingsViewModel
 
 private sealed class Tab(val route: String, val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     data object Home : Tab("home", R.string.nav_home, Icons.Default.Home)
     data object Messages : Tab("messages", R.string.nav_messages, Icons.Default.ChatBubble)
     data object Photos : Tab("photos", R.string.nav_photos, Icons.Default.Photo)
+    data object Settings : Tab("settings", R.string.nav_settings, Icons.Default.Settings)
 }
 
-private val tabs = listOf(Tab.Home, Tab.Messages, Tab.Photos)
+private val tabs = listOf(Tab.Home, Tab.Messages, Tab.Photos, Tab.Settings)
 
 @Composable
 fun EnsembleRoot(container: AppContainer) {
@@ -124,6 +128,12 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
                     factory = viewModelFactory { initializer { PhotosViewModel(container, coupleId, myUid) } }
                 )
                 PhotosScreen(vm)
+            }
+            composable(Tab.Settings.route) {
+                val vm: SettingsViewModel = viewModel(
+                    factory = viewModelFactory { initializer { SettingsViewModel(container, coupleId) } }
+                )
+                SettingsScreen(vm)
             }
         }
     }

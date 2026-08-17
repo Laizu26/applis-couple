@@ -2,6 +2,8 @@ package com.ensemble.app.ui.auth
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -13,6 +15,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
+import com.ensemble.app.ui.theme.RosePrimary
 
 @Composable
 fun AuthScreen(viewModel: AuthViewModel, onAuthenticated: () -> Unit) {
@@ -25,9 +28,20 @@ fun AuthScreen(viewModel: AuthViewModel, onAuthenticated: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        Icon(
+            Icons.Default.Favorite,
+            contentDescription = null,
+            tint = RosePrimary,
+            modifier = Modifier.size(48.dp)
+        )
+        Spacer(Modifier.height(12.dp))
         Text(stringResource(R.string.auth_title), style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(4.dp))
-        Text(stringResource(R.string.auth_subtitle), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            stringResource(R.string.auth_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(32.dp))
 
         OutlinedTextField(
