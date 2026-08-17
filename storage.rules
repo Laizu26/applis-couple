@@ -1,0 +1,13 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Seuls les deux membres du couple (vérifiés via le document Firestore correspondant)
+    // peuvent lire ou écrire les photos chiffrées de ce couple.
+    match /couples/{coupleId}/photos/{fileName} {
+      allow read, write: if request.auth != null &&
+        (firestore.get(/databases/(default)/documents/couples/$(coupleId)).data.user1Id == request.auth.uid ||
+         firestore.get(/databases/(default)/documents/couples/$(coupleId)).data.user2Id == request.auth.uid);
+    }
+  }
+}

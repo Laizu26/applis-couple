@@ -1,0 +1,40 @@
+package com.ensemble.app.data.repository
+
+import com.ensemble.app.data.model.CouplePhoto
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
+import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
+
+private const val MAX_PHOTO_BYTES = 15L * 1024 * 1024
+
+class PhotoRepository(
+    private val db: FirebaseFirestore,
+    private val storage: FirebaseStorage
+) {
+
+    private fun photos(coupleId: String) =
+        db.collection("couples").document(coupleId).collection("photos")
+
+    fun observePhotos(coupleId: String): Flow<List<CouplePhoto>> = callbackFlow {
+        val registration = photos(coupleId)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, _ ->
+                val list = snapshot?.documents?.mapNotNull { it.toObject(CouplePhoto::class.java) }.orEmpty()
+                trySend(list)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    suspend fun uploadPhoto(coupleId: String, photo: CouplePhoto, encryptedBytes: ByteArray) {
+        val storagePath = "couples/$coupleId/photos/${photo.id}.enc"
+        storage.reference.child(storagePath).putBytes(encryptedBytes).await()
+        photos(coupleId).document(photo.id).set(photo.copy(storagePath = storagePath)).await()
+    }
+
+    suspend fun downloadEncryptedBytes(storagePath: String): ByteArray =
+        storage.reference.child(storagePath).getBytes(MAX_PHOTO_BYTES).await()
+}

@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">Ensemble</string>
+
+    <string name="auth_title">Ensemble</string>
+    <string name="auth_subtitle">Juste pour nous deux</string>
+    <string name="auth_email">Adresse e-mail</string>
+    <string name="auth_password">Mot de passe</string>
+    <string name="auth_login">Se connecter</string>
+    <string name="auth_signup">Créer un compte</string>
+    <string name="auth_switch_to_signup">Pas encore de compte ? Inscris-toi</string>
+    <string name="auth_switch_to_login">Déjà un compte ? Connecte-toi</string>
+
+    <string name="pairing_title">Se relier à ta moitié</string>
+    <string name="pairing_create">Créer notre couple</string>
+    <string name="pairing_join">J\'ai déjà un code</string>
+    <string name="pairing_code_label">Code de connexion</string>
+    <string name="pairing_code_explain">Envoie ce code à ta/ton partenaire par un moyen sûr (message, en personne…). Il ne doit être utilisé qu\'une seule fois.</string>
+    <string name="pairing_code_copy">Copier le code</string>
+    <string name="pairing_enter_code">Colle le code reçu</string>
+    <string name="pairing_confirm">Valider</string>
+
+    <string name="home_title">Ensemble</string>
+    <string name="home_countdown_edit">Modifier</string>
+    <string name="home_countdown_days">jours</string>
+    <string name="home_countdown_none">Aucune date pour l\'instant</string>
+    <string name="home_countdown_set">Définir la date des retrouvailles</string>
+
+    <string name="messages_title">Messages</string>
+    <string name="messages_hint">Écris quelque chose de doux…</string>
+
+    <string name="photos_title">Photos</string>
+    <string name="photos_add">Ajouter une photo</string>
+    <string name="photos_empty">Aucune photo pour l\'instant</string>
+
+    <string name="nav_home">Accueil</string>
+    <string name="nav_messages">Messages</string>
+    <string name="nav_photos">Photos</string>
+</resources>

@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function coupleData(coupleId) {
+      return get(/databases/$(database)/documents/couples/$(coupleId)).data;
+    }
+
+    function isCoupleMember(coupleId) {
+      return isSignedIn() &&
+        (coupleData(coupleId).user1Id == request.auth.uid ||
+         coupleData(coupleId).user2Id == request.auth.uid);
+    }
+
+    // Profils utilisateurs (email, id du couple, token de notification)
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /couples/{coupleId} {
+      allow read: if isCoupleMember(coupleId);
+
+      // Création : seul le créateur peut se déclarer user1
+      allow create: if isSignedIn() && request.resource.data.user1Id == request.auth.uid;
+
+      // Mise à jour normale (countdown…) réservée aux membres du couple, OU
+      // rejoindre un couple en attente de 2e membre via le code de pairing
+      allow update: if isCoupleMember(coupleId) ||
+        (isSignedIn() &&
+         resource.data.user2Id == null &&
+         request.resource.data.user2Id == request.auth.uid &&
+         request.resource.data.user1Id == resource.data.user1Id);
+
+      match /messages/{messageId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      match /photos/{photoId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && request.resource.data.uploaderId == request.auth.uid;
+        allow update, delete: if isCoupleMember(coupleId);
+      }
+    }
+  }
+}
