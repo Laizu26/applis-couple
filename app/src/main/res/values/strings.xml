@@ -53,8 +53,25 @@
     <string name="settings_logout_confirm_title">Se déconnecter ?</string>
     <string name="settings_logout_confirm_body">Vous devrez ressaisir votre e-mail et mot de passe pour revenir.</string>
 
+    <string name="calendar_title">Calendrier</string>
+    <string name="calendar_upcoming">À venir</string>
+    <string name="calendar_past">Passés</string>
+    <string name="calendar_empty">Aucun événement pour l\'instant</string>
+    <string name="calendar_add">Ajouter un événement</string>
+    <string name="calendar_event_title_hint">Titre de l\'événement</string>
+    <string name="calendar_delete_confirm">Supprimer cet événement ?</string>
+
+    <string name="lock_title">Verrouillé</string>
+    <string name="lock_subtitle">Déverrouille pour accéder à l\'app</string>
+    <string name="lock_unlock">Déverrouiller</string>
+    <string name="settings_app_lock">Verrouiller l\'app</string>
+    <string name="settings_app_lock_explain">Demande ton empreinte, visage ou code de déverrouillage à chaque ouverture de l\'app.</string>
+
     <string name="nav_home">Accueil</string>
     <string name="nav_messages">Messages</string>
     <string name="nav_photos">Photos</string>
     <string name="nav_settings">Réglages</string>
+    <string name="nav_more">Plus</string>
+    <string name="more_calendar">Calendrier</string>
+    <string name="more_settings">Réglages</string>
 </resources>

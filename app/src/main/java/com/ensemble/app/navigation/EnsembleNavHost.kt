@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Photo
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,12 +24,17 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ensemble.app.R
 import com.ensemble.app.data.AppContainer
+import com.ensemble.app.data.lock.BiometricAuthenticator
 import com.ensemble.app.ui.auth.AuthScreen
 import com.ensemble.app.ui.auth.AuthViewModel
+import com.ensemble.app.ui.calendar.CalendarScreen
+import com.ensemble.app.ui.calendar.CalendarViewModel
 import com.ensemble.app.ui.home.HomeScreen
 import com.ensemble.app.ui.home.HomeViewModel
+import com.ensemble.app.ui.lock.AppLockGate
 import com.ensemble.app.ui.messages.MessagesScreen
 import com.ensemble.app.ui.messages.MessagesViewModel
+import com.ensemble.app.ui.more.MoreScreen
 import com.ensemble.app.ui.pairing.PairingScreen
 import com.ensemble.app.ui.pairing.PairingViewModel
 import com.ensemble.app.ui.photos.PhotosScreen
@@ -41,13 +46,21 @@ private sealed class Tab(val route: String, val labelRes: Int, val icon: android
     data object Home : Tab("home", R.string.nav_home, Icons.Default.Home)
     data object Messages : Tab("messages", R.string.nav_messages, Icons.Default.ChatBubble)
     data object Photos : Tab("photos", R.string.nav_photos, Icons.Default.Photo)
-    data object Settings : Tab("settings", R.string.nav_settings, Icons.Default.Settings)
+    data object More : Tab("more", R.string.nav_more, Icons.Default.MoreHoriz)
 }
 
-private val tabs = listOf(Tab.Home, Tab.Messages, Tab.Photos, Tab.Settings)
+private val tabs = listOf(Tab.Home, Tab.Messages, Tab.Photos, Tab.More)
+private val moreSubRoutes = setOf("calendar", "settings")
 
 @Composable
-fun EnsembleRoot(container: AppContainer) {
+fun EnsembleRoot(container: AppContainer, biometricAuthenticator: BiometricAuthenticator) {
+    AppLockGate(container = container, biometricAuthenticator = biometricAuthenticator) {
+        EnsembleContent(container)
+    }
+}
+
+@Composable
+private fun EnsembleContent(container: AppContainer) {
     val sessionViewModel: SessionViewModel = viewModel(
         factory = viewModelFactory { initializer { SessionViewModel(container) } }
     )
@@ -89,9 +102,12 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
             NavigationBar {
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = backStackEntry?.destination
+                val currentRoute = currentDestination?.route
                 tabs.forEach { tab ->
+                    val isSelected = currentDestination?.hierarchy?.any { it.route == tab.route } == true ||
+                        (tab == Tab.More && currentRoute in moreSubRoutes)
                     NavigationBarItem(
-                        selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true,
+                        selected = isSelected,
                         onClick = {
                             navController.navigate(tab.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -113,7 +129,7 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
         ) {
             composable(Tab.Home.route) {
                 val vm: HomeViewModel = viewModel(
-                    factory = viewModelFactory { initializer { HomeViewModel(container, coupleId) } }
+                    factory = viewModelFactory { initializer { HomeViewModel(container, coupleId, myUid) } }
                 )
                 HomeScreen(vm)
             }
@@ -129,7 +145,19 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
                 )
                 PhotosScreen(vm)
             }
-            composable(Tab.Settings.route) {
+            composable(Tab.More.route) {
+                MoreScreen(
+                    onCalendarClick = { navController.navigate("calendar") },
+                    onSettingsClick = { navController.navigate("settings") }
+                )
+            }
+            composable("calendar") {
+                val vm: CalendarViewModel = viewModel(
+                    factory = viewModelFactory { initializer { CalendarViewModel(container, coupleId, myUid) } }
+                )
+                CalendarScreen(vm)
+            }
+            composable("settings") {
                 val vm: SettingsViewModel = viewModel(
                     factory = viewModelFactory { initializer { SettingsViewModel(container, coupleId) } }
                 )

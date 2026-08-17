@@ -21,3 +21,17 @@ fun formatDate(epochMillis: Long): String =
 
 fun formatMessageTime(epochMillis: Long): String =
     SimpleDateFormat("dd/MM HH:mm", Locale.FRENCH).format(java.util.Date(epochMillis))
+
+/** Heure actuelle dans un fuseau donné (ex: "Europe/Paris"), au format HH:mm. Null si le fuseau est invalide. */
+fun currentTimeInZone(zoneId: String): String? = runCatching {
+    val zdt = java.time.ZonedDateTime.now(java.time.ZoneId.of(zoneId))
+    zdt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+}.getOrNull()
+
+/** Différence d'heures entre le fuseau donné et l'heure locale, arrondie (ex: +2, -5). */
+fun hourOffsetFromLocal(zoneId: String): Int? = runCatching {
+    val now = java.time.Instant.now()
+    val target = java.time.ZoneId.of(zoneId).rules.getOffset(now)
+    val local = java.time.ZoneId.systemDefault().rules.getOffset(now)
+    (target.totalSeconds - local.totalSeconds) / 3600
+}.getOrNull()

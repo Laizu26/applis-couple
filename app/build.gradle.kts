@@ -67,6 +67,8 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.lifecycle.process)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)

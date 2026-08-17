@@ -56,6 +56,10 @@ class CryptoManager(context: Context) {
         prefs.edit().remove(KEY_COUPLE_SECRET).apply()
     }
 
+    var isAppLockEnabled: Boolean
+        get() = prefs.getBoolean(KEY_APP_LOCK_ENABLED, false)
+        set(value) { prefs.edit().putBoolean(KEY_APP_LOCK_ENABLED, value).apply() }
+
     private fun secretKey(): SecretKeySpec {
         val raw = Base64.decode(exportCoupleKeyBase64(), Base64.NO_WRAP)
         return SecretKeySpec(raw, "AES")
@@ -93,6 +97,7 @@ class CryptoManager(context: Context) {
 
     companion object {
         private const val KEY_COUPLE_SECRET = "couple_secret_key"
+        private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_TAG_BITS = 128
     }

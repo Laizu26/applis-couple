@@ -49,20 +49,7 @@ class CoupleRepository(private val db: FirebaseFirestore) {
         awaitClose { registration.remove() }
     }
 
-    suspend fun updateMeeting(
-        coupleId: String,
-        labelIv: String,
-        labelCipher: String,
-        dateIv: String,
-        dateCipher: String
-    ) {
-        couples().document(coupleId).update(
-            mapOf(
-                "meetingLabelIv" to labelIv,
-                "meetingLabelCipher" to labelCipher,
-                "meetingDateIv" to dateIv,
-                "meetingDateCipher" to dateCipher
-            )
-        ).await()
+    suspend fun updateTimeZone(uid: String, zoneId: String) {
+        users().document(uid).set(mapOf("timeZoneId" to zoneId), com.google.firebase.firestore.SetOptions.merge()).await()
     }
 }

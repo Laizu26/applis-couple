@@ -4,11 +4,49 @@ data class Couple(
     val id: String = "",
     val user1Id: String = "",
     val user2Id: String? = null,
-    val meetingLabelIv: String? = null,
-    val meetingLabelCipher: String? = null,
-    val meetingDateIv: String? = null,
-    val meetingDateCipher: String? = null,
     val createdAt: Long = 0L
+)
+
+object EventCategory {
+    const val ENSEMBLE = "ENSEMBLE"
+    const val ANNIVERSAIRE = "ANNIVERSAIRE"
+    const val RENDEZVOUS = "RENDEZVOUS"
+    const val AUTRE = "AUTRE"
+
+    val all = listOf(ENSEMBLE, ANNIVERSAIRE, RENDEZVOUS, AUTRE)
+
+    fun emoji(category: String): String = when (category) {
+        ENSEMBLE -> "💕"
+        ANNIVERSAIRE -> "🎂"
+        RENDEZVOUS -> "📅"
+        else -> "⭐"
+    }
+
+    fun label(category: String): String = when (category) {
+        ENSEMBLE -> "Ensemble"
+        ANNIVERSAIRE -> "Anniversaire"
+        RENDEZVOUS -> "Rendez-vous"
+        else -> "Autre"
+    }
+}
+
+data class CalendarEvent(
+    val id: String = "",
+    val authorId: String = "",
+    val category: String = EventCategory.AUTRE,
+    val titleIv: String = "",
+    val titleCipher: String = "",
+    val dateMillis: Long = 0L,
+    val createdAt: Long = 0L
+)
+
+data class DecryptedEvent(
+    val id: String,
+    val authorId: String,
+    val category: String,
+    val title: String,
+    val dateMillis: Long,
+    val createdAt: Long
 )
 
 object MessageType {
@@ -56,5 +94,6 @@ data class UserProfile(
     val uid: String = "",
     val email: String = "",
     val coupleId: String? = null,
-    val fcmToken: String? = null
+    val fcmToken: String? = null,
+    val timeZoneId: String? = null
 )

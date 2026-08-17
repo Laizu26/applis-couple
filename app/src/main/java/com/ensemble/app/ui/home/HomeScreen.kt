@@ -4,27 +4,39 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
-import com.ensemble.app.ui.theme.RosePrimary
 import com.ensemble.app.ui.theme.RoseContainer
+import com.ensemble.app.ui.theme.RosePrimary
 import com.ensemble.app.util.countdownTo
+import com.ensemble.app.util.currentTimeInZone
 import com.ensemble.app.util.formatDate
+import com.ensemble.app.util.hourOffsetFromLocal
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val partnerZoneId by viewModel.partnerTimeZoneId.collectAsStateWithLifecycle()
     var showEditDialog by remember { mutableStateOf(false) }
+
+    var tick by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            tick = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -113,6 +125,30 @@ fun HomeScreen(viewModel: HomeViewModel) {
                     Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.home_countdown_edit))
+                }
+            }
+
+            val zone = partnerZoneId
+            if (zone != null) {
+                val partnerTime = remember(zone, tick) { currentTimeInZone(zone) }
+                val offset = remember(zone, tick) { hourOffsetFromLocal(zone) }
+                if (partnerTime != null) {
+                    Spacer(Modifier.height(28.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Public,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        val offsetText = offset?.let { if (it >= 0) " (UTC${if (it == 0) "" else "+$it"})" else " (UTC$it)" }.orEmpty()
+                        Text(
+                            "Il est $partnerTime chez ta moitié$offsetText",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

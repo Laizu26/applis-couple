@@ -4,10 +4,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import com.ensemble.app.data.lock.BiometricAuthenticator
 import com.ensemble.app.navigation.EnsembleRoot
 import com.ensemble.app.ui.theme.EnsembleTheme
 import com.google.firebase.Firebase
@@ -15,7 +16,7 @@ import com.google.firebase.messaging.messaging
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -25,10 +26,12 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
         registerFcmTokenListener()
 
+        val biometricAuthenticator = BiometricAuthenticator(this)
+
         setContent {
             val container = (application as EnsembleApplication).container
             EnsembleTheme {
-                EnsembleRoot(container)
+                EnsembleRoot(container, biometricAuthenticator)
             }
         }
     }

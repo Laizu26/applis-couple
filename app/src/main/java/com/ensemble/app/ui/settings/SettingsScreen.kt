@@ -86,6 +86,28 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             }
         }
 
+        Spacer(Modifier.height(16.dp))
+        Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_app_lock), style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.settings_app_lock_explain),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(checked = viewModel.appLockEnabled, onCheckedChange = viewModel::toggleAppLock)
+            }
+        }
+
         Spacer(Modifier.weight(1f))
 
         OutlinedButton(
