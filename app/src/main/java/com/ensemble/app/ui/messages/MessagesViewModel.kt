@@ -23,7 +23,8 @@ private const val TYPING_IDLE_DELAY_MS = 3000L
 
 data class MessagesUiState(
     val messages: List<DecryptedMessage> = emptyList(),
-    val draft: String = ""
+    val draft: String = "",
+    val errorMessage: String? = null
 )
 
 class MessagesViewModel(
@@ -62,7 +63,7 @@ class MessagesViewModel(
                 val decrypted = messages.mapNotNull(::decrypt)
                 _uiState.update { it.copy(messages = decrypted) }
                 decrypted.maxOfOrNull { it.timestamp }?.let { latest ->
-                    if (latest > 0) container.messageRepository.markRead(coupleId, myUid, latest)
+                    if (latest > 0) runCatching { container.messageRepository.markRead(coupleId, myUid, latest) }
                 }
             }
         }
@@ -70,10 +71,14 @@ class MessagesViewModel(
 
     private fun observePartnerSignals(partner: String) {
         viewModelScope.launch {
-            container.messageRepository.observeTyping(coupleId, partner).collect { _partnerTyping.value = it }
+            runCatching {
+                container.messageRepository.observeTyping(coupleId, partner).collect { _partnerTyping.value = it }
+            }
         }
         viewModelScope.launch {
-            container.messageRepository.observePartnerRead(coupleId, partner).collect { _partnerReadTimestamp.value = it }
+            runCatching {
+                container.messageRepository.observePartnerRead(coupleId, partner).collect { _partnerReadTimestamp.value = it }
+            }
         }
     }
 
@@ -105,16 +110,16 @@ class MessagesViewModel(
         if (isTyping) {
             if (!isCurrentlyTyping) {
                 isCurrentlyTyping = true
-                viewModelScope.launch { container.messageRepository.setTyping(coupleId, myUid, true) }
+                viewModelScope.launch { runCatching { container.messageRepository.setTyping(coupleId, myUid, true) } }
             }
             typingResetJob = viewModelScope.launch {
                 delay(TYPING_IDLE_DELAY_MS)
                 isCurrentlyTyping = false
-                container.messageRepository.setTyping(coupleId, myUid, false)
+                runCatching { container.messageRepository.setTyping(coupleId, myUid, false) }
             }
         } else if (isCurrentlyTyping) {
             isCurrentlyTyping = false
-            viewModelScope.launch { container.messageRepository.setTyping(coupleId, myUid, false) }
+            viewModelScope.launch { runCatching { container.messageRepository.setTyping(coupleId, myUid, false) } }
         }
     }
 
@@ -124,40 +129,52 @@ class MessagesViewModel(
         _uiState.update { it.copy(draft = "") }
         handleTyping(false)
         viewModelScope.launch {
-            val payload = container.cryptoManager.encryptText(text)
-            container.messageRepository.sendMessage(
-                coupleId,
-                ChatMessage(
-                    senderId = myUid,
-                    type = MessageType.TEXT,
-                    ivBase64 = payload.ivBase64,
-                    cipherTextBase64 = payload.cipherTextBase64,
-                    timestamp = System.currentTimeMillis()
+            runCatching {
+                val payload = container.cryptoManager.encryptText(text)
+                container.messageRepository.sendMessage(
+                    coupleId,
+                    ChatMessage(
+                        senderId = myUid,
+                        type = MessageType.TEXT,
+                        ivBase64 = payload.ivBase64,
+                        cipherTextBase64 = payload.cipherTextBase64,
+                        timestamp = System.currentTimeMillis()
+                    )
                 )
-            )
+            }.onFailure { restoreDraftAfterFailure(text) }
         }
+    }
+
+    private fun restoreDraftAfterFailure(text: String) {
+        _uiState.update { it.copy(draft = text, errorMessage = "Message non envoyé, réessaie") }
+    }
+
+    fun dismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
     }
 
     fun sendPhotos(rawBytesList: List<ByteArray>) {
         viewModelScope.launch {
             for (bytes in rawBytesList) {
-                withContext(Dispatchers.IO) {
-                    val (iv, cipherBytes) = container.cryptoManager.encryptBytes(bytes)
-                    val messageId = UUID.randomUUID().toString()
-                    val storagePath = "couples/$coupleId/chat/$messageId.enc"
-                    container.photoRepository.uploadEncryptedBytes(storagePath, cipherBytes)
-                    container.messageRepository.sendMessage(
-                        coupleId,
-                        ChatMessage(
-                            id = messageId,
-                            senderId = myUid,
-                            type = MessageType.PHOTO,
-                            photoStoragePath = storagePath,
-                            photoIvBase64 = Base64.encodeToString(iv, Base64.NO_WRAP),
-                            timestamp = System.currentTimeMillis()
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        val (iv, cipherBytes) = container.cryptoManager.encryptBytes(bytes)
+                        val messageId = UUID.randomUUID().toString()
+                        val storagePath = "couples/$coupleId/chat/$messageId.enc"
+                        container.photoRepository.uploadEncryptedBytes(storagePath, cipherBytes)
+                        container.messageRepository.sendMessage(
+                            coupleId,
+                            ChatMessage(
+                                id = messageId,
+                                senderId = myUid,
+                                type = MessageType.PHOTO,
+                                photoStoragePath = storagePath,
+                                photoIvBase64 = Base64.encodeToString(iv, Base64.NO_WRAP),
+                                timestamp = System.currentTimeMillis()
+                            )
                         )
-                    )
-                }
+                    }
+                }.onFailure { _uiState.update { it.copy(errorMessage = "Envoi de la photo échoué") } }
             }
         }
     }
@@ -171,19 +188,26 @@ class MessagesViewModel(
     fun editMessage(messageId: String, newText: String) {
         if (newText.isBlank()) return
         viewModelScope.launch {
-            val payload = container.cryptoManager.encryptText(newText)
-            container.messageRepository.editMessage(coupleId, messageId, payload.ivBase64, payload.cipherTextBase64)
+            runCatching {
+                val payload = container.cryptoManager.encryptText(newText)
+                container.messageRepository.editMessage(coupleId, messageId, payload.ivBase64, payload.cipherTextBase64)
+            }.onFailure { _uiState.update { it.copy(errorMessage = "Modification échouée") } }
         }
     }
 
     fun deleteMessage(messageId: String) {
-        viewModelScope.launch { container.messageRepository.deleteMessage(coupleId, messageId) }
+        viewModelScope.launch {
+            runCatching { container.messageRepository.deleteMessage(coupleId, messageId) }
+                .onFailure { _uiState.update { it.copy(errorMessage = "Suppression échouée") } }
+        }
     }
 
     fun toggleReaction(message: DecryptedMessage, emoji: String) {
         val currentlySet = message.reactions[myUid] == emoji
         viewModelScope.launch {
-            container.messageRepository.toggleReaction(coupleId, message.id, myUid, emoji, currentlySet)
+            runCatching {
+                container.messageRepository.toggleReaction(coupleId, message.id, myUid, emoji, currentlySet)
+            }
         }
     }
 }

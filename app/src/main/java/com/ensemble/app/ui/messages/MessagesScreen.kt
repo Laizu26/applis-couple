@@ -75,7 +75,16 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.dismissError()
+        }
+    }
+
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -121,6 +130,7 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Envoyer", tint = MaterialTheme.colorScheme.primary)
             }
         }
+    }
     }
 
     actionsForMessage?.let { message ->
