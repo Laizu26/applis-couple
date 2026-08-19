@@ -1,16 +1,23 @@
 package com.ensemble.app.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Photo
@@ -20,16 +27,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
+import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.CouplePhoto
 import com.ensemble.app.data.model.EventCategory
+import com.ensemble.app.ui.components.PhotoSourceMenu
 import com.ensemble.app.ui.theme.RoseContainer
 import com.ensemble.app.ui.theme.RosePrimary
 import com.ensemble.app.util.countdownTo
@@ -52,6 +66,7 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}, onOpen
     val memoryOfTheDay by viewModel.memoryOfTheDay.collectAsStateWithLifecycle()
     val isUploadingQuickPhoto by viewModel.isUploadingQuickPhoto.collectAsStateWithLifecycle()
     var showEditDialog by remember { mutableStateOf(false) }
+    var fullScreenMemory by remember { mutableStateOf<CouplePhoto?>(null) }
     val context = LocalContext.current
 
     val pickQuickPhoto = rememberLauncherForActivityResult(
@@ -227,13 +242,14 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}, onOpen
 
             memoryOfTheDay?.let { photo ->
                 Spacer(Modifier.height(20.dp))
-                MemoryOfTheDayCard(photo, viewModel)
+                MemoryOfTheDayCard(photo, viewModel) { fullScreenMemory = photo }
             }
 
             Spacer(Modifier.height(20.dp))
             QuickActionsRow(
                 isUploading = isUploadingQuickPhoto,
-                onAddPhoto = { pickQuickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onGalleryClick = { pickQuickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onCameraCaptured = { bytes -> viewModel.quickAddPhoto(bytes) },
                 onOpenMessages = onOpenMessages
             )
 
@@ -242,6 +258,10 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}, onOpen
                 UpcomingEventsSection(upcomingEvents, onOpenCalendar)
             }
         }
+    }
+
+    fullScreenMemory?.let { photo ->
+        FullScreenMemoryDialog(photo, viewModel, onDismiss = { fullScreenMemory = null })
     }
 
     if (showEditDialog) {
@@ -293,7 +313,7 @@ private fun StatCard(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MemoryOfTheDayCard(photo: CouplePhoto, viewModel: HomeViewModel) {
+private fun MemoryOfTheDayCard(photo: CouplePhoto, viewModel: HomeViewModel, onClick: () -> Unit) {
     var bitmap by remember(photo.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     LaunchedEffect(photo.id) { bitmap = viewModel.loadMemoryBitmap(photo) }
 
@@ -312,7 +332,8 @@ private fun MemoryOfTheDayCard(photo: CouplePhoto, viewModel: HomeViewModel) {
                     .fillMaxWidth()
                     .height(200.dp)
                     .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(enabled = bitmap != null, onClick = onClick),
                 contentAlignment = Alignment.Center
             ) {
                 val current = bitmap
@@ -332,22 +353,109 @@ private fun MemoryOfTheDayCard(photo: CouplePhoto, viewModel: HomeViewModel) {
 }
 
 @Composable
-private fun QuickActionsRow(isUploading: Boolean, onAddPhoto: () -> Unit, onOpenMessages: () -> Unit) {
+private fun FullScreenMemoryDialog(photo: CouplePhoto, viewModel: HomeViewModel, onDismiss: () -> Unit) {
+    var bitmap by remember(photo.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    val context = LocalContext.current
+    LaunchedEffect(photo.id) { bitmap = viewModel.loadMemoryBitmap(photo) }
+
+    fun downloadPhoto() {
+        val current = bitmap ?: return
+        val saved = MediaSaver.saveImage(context, current.asAndroidBitmap())
+        Toast.makeText(
+            context,
+            context.getString(if (saved) R.string.photos_download_success else R.string.photos_download_error),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    val storagePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) downloadPhoto() }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            val current = bitmap
+            if (current != null) {
+                Image(
+                    bitmap = current,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(onClick = onDismiss)
+                )
+            } else {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+            ) {
+                IconButton(
+                    onClick = {
+                        val needsPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+                            PackageManager.PERMISSION_GRANTED
+                        if (needsPermission) {
+                            storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                        } else {
+                            downloadPhoto()
+                        }
+                    },
+                    enabled = bitmap != null,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = stringResource(R.string.photos_download), tint = Color.White)
+                }
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionsRow(
+    isUploading: Boolean,
+    onGalleryClick: () -> Unit,
+    onCameraCaptured: (ByteArray) -> Unit,
+    onOpenMessages: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        OutlinedButton(
-            onClick = onAddPhoto,
-            enabled = !isUploading,
-            modifier = Modifier.weight(1f)
-        ) {
-            if (isUploading) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Default.Photo, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.home_quick_photo))
+        PhotoSourceMenu(
+            modifier = Modifier.weight(1f),
+            onGalleryClick = onGalleryClick,
+            onCameraCaptured = onCameraCaptured
+        ) { openMenu ->
+            OutlinedButton(
+                onClick = openMenu,
+                enabled = !isUploading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isUploading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Photo, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.home_quick_photo))
+                }
             }
         }
         OutlinedButton(

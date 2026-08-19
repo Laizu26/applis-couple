@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
 import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.CouplePhoto
+import com.ensemble.app.ui.components.PhotoSourceMenu
 
 @Composable
 fun PhotosScreen(viewModel: PhotosViewModel) {
@@ -91,16 +92,19 @@ fun PhotosScreen(viewModel: PhotosViewModel) {
             }
         }
 
-        FloatingActionButton(
-            onClick = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        PhotoSourceMenu(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            if (uploadCount > 0) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.photos_add))
+                .padding(16.dp),
+            onGalleryClick = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onCameraCaptured = { bytes -> viewModel.addPhotos(listOf(bytes)) }
+        ) { openMenu ->
+            FloatingActionButton(onClick = openMenu) {
+                if (uploadCount > 0) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.photos_add))
+                }
             }
         }
     }

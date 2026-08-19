@@ -38,6 +38,9 @@
     <string name="home_quick_photo">Photo</string>
     <string name="home_quick_message">Message</string>
 
+    <string name="photo_source_gallery">Galerie</string>
+    <string name="photo_source_camera">Appareil photo</string>
+
     <string name="messages_title">Messages</string>
     <string name="messages_partner_online">🟢 En ligne</string>
     <string name="messages_partner_offline">Hors ligne</string>

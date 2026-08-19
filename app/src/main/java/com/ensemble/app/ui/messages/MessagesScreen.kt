@@ -46,6 +46,7 @@ import com.ensemble.app.data.audio.VoiceRecorder
 import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.DecryptedMessage
 import com.ensemble.app.data.model.MessageType
+import com.ensemble.app.ui.components.PhotoSourceMenu
 import com.ensemble.app.ui.theme.BubbleMine
 import com.ensemble.app.ui.theme.BubbleTheirs
 import com.ensemble.app.util.formatDuration
@@ -194,10 +195,15 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = {
-                    pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }) {
-                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.photos_add))
+                PhotoSourceMenu(
+                    onGalleryClick = {
+                        pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    onCameraCaptured = { bytes -> viewModel.sendPhotos(listOf(bytes)) }
+                ) { openMenu ->
+                    IconButton(onClick = openMenu) {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.photos_add))
+                    }
                 }
                 OutlinedTextField(
                     value = uiState.draft,
