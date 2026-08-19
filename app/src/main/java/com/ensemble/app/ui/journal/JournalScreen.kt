@@ -1,5 +1,9 @@
 package com.ensemble.app.ui.journal
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,16 +21,17 @@ import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatUnderlined
-import androidx.compose.material.icons.filled.Image as ImageIcon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -40,25 +45,22 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
 import com.ensemble.app.data.media.MediaSaver
-import com.ensemble.app.data.model.DecryptedMemory
+import com.ensemble.app.data.model.DecryptedJournalDay
 import com.ensemble.app.ui.components.FormDialog
+import com.ensemble.app.ui.components.PhotoSourceMenu
 import com.ensemble.app.util.formatDate
-import com.ensemble.app.util.localDateToPickerMillis
 import com.ensemble.app.util.parseMarkup
-import com.ensemble.app.util.pickerMillisToLocalDayMillis
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import android.widget.Toast
+
+private enum class SectionKind { MINE, COMMON }
+private data class EditTarget(val dateKey: String, val dateMillis: Long, val kind: SectionKind, val initialText: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JournalScreen(viewModel: JournalViewModel, onBack: () -> Unit = {}) {
-    val memories by viewModel.memories.collectAsStateWithLifecycle()
-    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
-    var showAddDialog by remember { mutableStateOf(false) }
-    var deletingId by remember { mutableStateOf<String?>(null) }
-    var fullScreenMemory by remember { mutableStateOf<DecryptedMemory?>(null) }
+    val days by viewModel.days.collectAsStateWithLifecycle()
+    val partnerLabel by viewModel.partnerLabel.collectAsStateWithLifecycle()
+    var editingSection by remember { mutableStateOf<EditTarget?>(null) }
+    var fullScreenPhotoDay by remember { mutableStateOf<DecryptedJournalDay?>(null) }
 
     Scaffold(
         topBar = {
@@ -72,16 +74,21 @@ fun JournalScreen(viewModel: JournalViewModel, onBack: () -> Unit = {}) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
-                if (isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.journal_add))
-                }
+            FloatingActionButton(onClick = {
+                val todayKey = viewModel.todayDateKey()
+                val existingToday = days.find { it.id == todayKey }
+                editingSection = EditTarget(
+                    dateKey = todayKey,
+                    dateMillis = viewModel.todayDateMillis(),
+                    kind = SectionKind.MINE,
+                    initialText = existingToday?.myText.orEmpty()
+                )
+            }) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.journal_add))
             }
         }
     ) { padding ->
-        if (memories.isEmpty()) {
+        if (days.isEmpty()) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -106,69 +113,82 @@ fun JournalScreen(viewModel: JournalViewModel, onBack: () -> Unit = {}) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
-                items(memories, key = { it.id }) { memory ->
-                    MemoryCard(
-                        memory,
-                        loadBitmap = { viewModel.loadBitmap(memory) },
-                        onDelete = { deletingId = memory.id },
-                        onPhotoClick = { fullScreenMemory = memory }
+                items(days, key = { it.id }) { day ->
+                    DayCard(
+                        day = day,
+                        partnerLabel = partnerLabel?.takeIf { it.isNotBlank() } ?: stringResource(R.string.journal_partner_generic),
+                        loadBitmap = { viewModel.loadDayBitmap(day) },
+                        onEditMine = {
+                            editingSection = EditTarget(day.id, day.dateMillis, SectionKind.MINE, day.myText)
+                        },
+                        onEditCommon = {
+                            editingSection = EditTarget(day.id, day.dateMillis, SectionKind.COMMON, day.commonText)
+                        },
+                        onPhotoClick = { fullScreenPhotoDay = day },
+                        onAddPhoto = { bytes -> viewModel.setDayPhoto(day.id, day.dateMillis, bytes) }
                     )
                 }
             }
         }
     }
 
-    if (showAddDialog) {
-        AddMemoryDialog(
-            onDismiss = { showAddDialog = false },
-            onConfirm = { text, date, photoBytes ->
-                viewModel.addMemory(text, date, photoBytes)
-                showAddDialog = false
+    editingSection?.let { target ->
+        EditPassageDialog(
+            initialText = target.initialText,
+            onDismiss = { editingSection = null },
+            onConfirm = { text ->
+                when (target.kind) {
+                    SectionKind.MINE -> viewModel.saveMyText(target.dateKey, target.dateMillis, text)
+                    SectionKind.COMMON -> viewModel.saveCommonText(target.dateKey, target.dateMillis, text)
+                }
+                editingSection = null
             }
         )
     }
 
-    deletingId?.let { id ->
-        AlertDialog(
-            onDismissRequest = { deletingId = null },
-            title = { Text(stringResource(R.string.journal_delete_confirm)) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.deleteMemory(id); deletingId = null }) {
-                    Text(stringResource(R.string.messages_delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = { TextButton(onClick = { deletingId = null }) { Text(stringResource(R.string.messages_cancel)) } }
-        )
-    }
-
-    fullScreenMemory?.let { memory ->
-        FullScreenMemoryPhotoDialog(
-            memory,
-            loadBitmap = { viewModel.loadBitmap(memory) },
-            onDismiss = { fullScreenMemory = null }
+    fullScreenPhotoDay?.let { day ->
+        FullScreenDayPhotoDialog(
+            day,
+            loadBitmap = { viewModel.loadDayBitmap(day) },
+            onDismiss = { fullScreenPhotoDay = null },
+            onRemove = {
+                viewModel.removeDayPhoto(day.id, day.photoStoragePath)
+                fullScreenPhotoDay = null
+            }
         )
     }
 }
 
 @Composable
-private fun MemoryCard(
-    memory: DecryptedMemory,
-    loadBitmap: suspend () -> androidx.compose.ui.graphics.ImageBitmap?,
-    onDelete: () -> Unit,
-    onPhotoClick: () -> Unit
+private fun DayCard(
+    day: DecryptedJournalDay,
+    partnerLabel: String,
+    loadBitmap: suspend () -> ImageBitmap?,
+    onEditMine: () -> Unit,
+    onEditCommon: () -> Unit,
+    onPhotoClick: () -> Unit,
+    onAddPhoto: (ByteArray) -> Unit
 ) {
+    val context = LocalContext.current
+    val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null) onAddPhoto(bytes)
+        }
+    }
+
     Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
         Column {
-            if (memory.photoStoragePath != null) {
-                var bitmap by remember(memory.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-                LaunchedEffect(memory.id) { bitmap = loadBitmap() }
+            if (day.photoStoragePath != null) {
+                var bitmap by remember(day.id) { mutableStateOf<ImageBitmap?>(null) }
+                LaunchedEffect(day.id) { bitmap = loadBitmap() }
                 val current = bitmap
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(180.dp)
                         .clip(MaterialTheme.shapes.large)
-                        .clickable(enabled = bitmap != null, onClick = onPhotoClick),
+                        .clickable(enabled = current != null, onClick = onPhotoClick),
                     contentAlignment = Alignment.Center
                 ) {
                     if (current != null) {
@@ -183,81 +203,79 @@ private fun MemoryCard(
                     }
                 }
             }
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(formatDate(memory.memoryDate), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(4.dp))
-                    Text(parseMarkup(memory.text), style = MaterialTheme.typography.bodyLarge)
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.messages_delete))
+
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(formatDate(day.dateMillis), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(10.dp))
+                PassageSection(stringResource(R.string.journal_section_mine), day.myText, onEditMine)
+                Spacer(Modifier.height(12.dp))
+                PassageSection(partnerLabel, day.partnerText, onEdit = null)
+                Spacer(Modifier.height(12.dp))
+                PassageSection(stringResource(R.string.journal_section_common), day.commonText, onEditCommon)
+
+                if (day.photoStoragePath == null) {
+                    Spacer(Modifier.height(10.dp))
+                    PhotoSourceMenu(
+                        onGalleryClick = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onCameraCaptured = onAddPhoto
+                    ) { openMenu ->
+                        OutlinedButton(onClick = openMenu, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.journal_add_photo))
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddMemoryDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (text: String, dateMillis: Long, photoBytes: ByteArray?) -> Unit
-) {
-    var textField by remember { mutableStateOf(TextFieldValue("")) }
-    var photoBytes by remember { mutableStateOf<ByteArray?>(null) }
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = localDateToPickerMillis(java.time.LocalDate.now())
-    )
-    val context = LocalContext.current
-
-    val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) {
-            photoBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+private fun PassageSection(label: String, text: String, onEdit: (() -> Unit)?) {
+    Row(verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(2.dp))
+            if (text.isNotBlank()) {
+                Text(parseMarkup(text), style = MaterialTheme.typography.bodyLarge)
+            } else {
+                Text(
+                    stringResource(R.string.journal_section_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+        }
+        if (onEdit != null) {
+            IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.messages_edit), modifier = Modifier.size(18.dp))
+            }
         }
     }
+}
+
+@Composable
+private fun EditPassageDialog(
+    initialText: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var textField by remember { mutableStateOf(TextFieldValue(initialText)) }
 
     FormDialog(
         onDismiss = onDismiss,
         confirmLabel = stringResource(R.string.pairing_confirm),
-        onConfirm = {
-            val selected = datePickerState.selectedDateMillis
-            if (selected != null) onConfirm(textField.text, pickerMillisToLocalDayMillis(selected), photoBytes)
-        }
+        onConfirm = { onConfirm(textField.text) }
     ) {
         RichTextToolbar(value = textField, onValueChange = { textField = it })
         Spacer(Modifier.height(4.dp))
         OutlinedTextField(
             value = textField,
             onValueChange = { textField = it },
-            label = { Text(stringResource(R.string.journal_text_hint)) },
-            minLines = 3,
+            minLines = 5,
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(8.dp))
-        if (photoBytes != null) {
-            OutlinedButton(
-                onClick = { photoBytes = null },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.journal_remove_photo))
-            }
-        } else {
-            OutlinedButton(
-                onClick = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.ImageIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.journal_add_photo))
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        DatePicker(state = datePickerState, showModeToggle = false)
     }
 }
 
@@ -305,14 +323,16 @@ private fun RichTextToolbar(value: TextFieldValue, onValueChange: (TextFieldValu
 }
 
 @Composable
-private fun FullScreenMemoryPhotoDialog(
-    memory: DecryptedMemory,
-    loadBitmap: suspend () -> androidx.compose.ui.graphics.ImageBitmap?,
-    onDismiss: () -> Unit
+private fun FullScreenDayPhotoDialog(
+    day: DecryptedJournalDay,
+    loadBitmap: suspend () -> ImageBitmap?,
+    onDismiss: () -> Unit,
+    onRemove: () -> Unit
 ) {
-    var bitmap by remember(memory.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var bitmap by remember(day.id) { mutableStateOf<ImageBitmap?>(null) }
+    var showRemoveConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    LaunchedEffect(memory.id) { bitmap = loadBitmap() }
+    LaunchedEffect(day.id) { bitmap = loadBitmap() }
 
     fun downloadPhoto() {
         val current = bitmap ?: return
@@ -374,6 +394,13 @@ private fun FullScreenMemoryPhotoDialog(
                 }
                 Spacer(Modifier.width(8.dp))
                 IconButton(
+                    onClick = { showRemoveConfirm = true },
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.messages_delete), tint = Color.White)
+                }
+                Spacer(Modifier.width(8.dp))
+                IconButton(
                     onClick = onDismiss,
                     modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
                 ) {
@@ -381,5 +408,21 @@ private fun FullScreenMemoryPhotoDialog(
                 }
             }
         }
+    }
+
+    if (showRemoveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRemoveConfirm = false },
+            title = { Text(stringResource(R.string.journal_remove_photo)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRemoveConfirm = false
+                    onRemove()
+                }) { Text(stringResource(R.string.messages_delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveConfirm = false }) { Text(stringResource(R.string.messages_cancel)) }
+            }
+        )
     }
 }

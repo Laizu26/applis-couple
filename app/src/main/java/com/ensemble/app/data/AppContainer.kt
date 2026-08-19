@@ -6,7 +6,7 @@ import com.ensemble.app.data.crypto.EncryptedImageLoader
 import com.ensemble.app.data.repository.AuthRepository
 import com.ensemble.app.data.repository.CoupleRepository
 import com.ensemble.app.data.repository.EventRepository
-import com.ensemble.app.data.repository.MemoryRepository
+import com.ensemble.app.data.repository.JournalRepository
 import com.ensemble.app.data.repository.MessageRepository
 import com.ensemble.app.data.repository.PhotoRepository
 import com.ensemble.app.data.repository.UpdateRepository
@@ -25,7 +25,7 @@ class AppContainer(context: Context) {
     val messageRepository = MessageRepository(Firebase.firestore)
     val photoRepository = PhotoRepository(Firebase.firestore, Firebase.storage)
     val eventRepository = EventRepository(Firebase.firestore)
-    val memoryRepository = MemoryRepository(Firebase.firestore, photoRepository)
+    val journalRepository = JournalRepository(Firebase.firestore, Firebase.storage)
     val updateRepository = UpdateRepository(Firebase.firestore, Firebase.storage)
     val imageLoader = EncryptedImageLoader(photoRepository, cryptoManager)
 }

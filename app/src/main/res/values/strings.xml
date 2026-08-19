@@ -64,6 +64,14 @@
     <string name="photos_download_success">Photo enregistrée dans la galerie</string>
     <string name="photos_download_error">Échec de l\'enregistrement</string>
 
+    <string name="album_all">Toutes</string>
+    <string name="album_new">Nouvel album</string>
+    <string name="album_name_hint">Nom de l\'album</string>
+    <string name="album_delete_confirm">Supprimer cet album ?</string>
+    <string name="album_delete_explain">Les photos ne seront pas supprimées, juste retirées de l\'album.</string>
+    <string name="album_add_to">Ajouter à un album</string>
+    <string name="album_none">Aucun album</string>
+
     <string name="settings_title">Réglages</string>
     <string name="settings_display_name">Ton prénom</string>
     <string name="settings_display_name_hint">Comment tu t\'appelles</string>
@@ -94,11 +102,13 @@
 
     <string name="journal_title">Journal</string>
     <string name="journal_empty">Votre histoire commence ici</string>
-    <string name="journal_add">Ajouter un souvenir</string>
-    <string name="journal_text_hint">Racontez ce souvenir…</string>
+    <string name="journal_add">Écrire aujourd\'hui</string>
     <string name="journal_add_photo">Ajouter une photo</string>
-    <string name="journal_remove_photo">Retirer la photo</string>
-    <string name="journal_delete_confirm">Supprimer ce souvenir ?</string>
+    <string name="journal_remove_photo">Retirer la photo ?</string>
+    <string name="journal_section_mine">Toi</string>
+    <string name="journal_section_common">Commun</string>
+    <string name="journal_section_empty">Rien pour l\'instant</string>
+    <string name="journal_partner_generic">Ton/ta partenaire</string>
 
     <string name="nav_home">Accueil</string>
     <string name="nav_messages">Messages</string>

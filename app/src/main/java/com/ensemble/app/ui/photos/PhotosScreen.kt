@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PhotoAlbum
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,14 +45,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
 import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.CouplePhoto
+import com.ensemble.app.data.model.DecryptedAlbum
 import com.ensemble.app.ui.components.PhotoSourceMenu
 
 @Composable
 fun PhotosScreen(viewModel: PhotosViewModel) {
-    val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val photos by viewModel.visiblePhotos.collectAsStateWithLifecycle()
+    val albums by viewModel.albums.collectAsStateWithLifecycle()
+    val selectedAlbumId by viewModel.selectedAlbumId.collectAsStateWithLifecycle()
     val uploadCount by viewModel.uploadCount.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var fullScreenIndex by remember { mutableStateOf<Int?>(null) }
+    var showCreateAlbum by remember { mutableStateOf(false) }
+    var deletingAlbumId by remember { mutableStateOf<String?>(null) }
 
     val pickMedia = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 20)
@@ -62,59 +70,166 @@ fun PhotosScreen(viewModel: PhotosViewModel) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (photos.isEmpty()) {
-            Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    Icons.Default.Favorite,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(56.dp)
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.photos_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                itemsIndexed(photos, key = { _, item -> item.id }) { index, photo ->
-                    PhotoThumbnail(photo, viewModel) { fullScreenIndex = index }
+    Column(modifier = Modifier.fillMaxSize()) {
+        AlbumChipsRow(
+            albums = albums,
+            selectedAlbumId = selectedAlbumId,
+            onSelect = viewModel::selectAlbum,
+            onCreateClick = { showCreateAlbum = true },
+            onDeleteClick = { deletingAlbumId = it }
+        )
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (photos.isEmpty()) {
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.Favorite,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.photos_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    itemsIndexed(photos, key = { _, item -> item.id }) { index, photo ->
+                        PhotoThumbnail(photo, viewModel) { fullScreenIndex = index }
+                    }
                 }
             }
-        }
 
-        PhotoSourceMenu(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            onGalleryClick = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-            onCameraCaptured = { bytes -> viewModel.addPhotos(listOf(bytes)) }
-        ) { openMenu ->
-            FloatingActionButton(onClick = openMenu) {
-                if (uploadCount > 0) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.photos_add))
+            PhotoSourceMenu(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                onGalleryClick = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onCameraCaptured = { bytes -> viewModel.addPhotos(listOf(bytes)) }
+            ) { openMenu ->
+                FloatingActionButton(onClick = openMenu) {
+                    if (uploadCount > 0) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.photos_add))
+                    }
                 }
             }
         }
     }
 
     fullScreenIndex?.let { index ->
-        FullScreenPhotoPagerDialog(photos, index, viewModel, onDismiss = { fullScreenIndex = null })
+        FullScreenPhotoPagerDialog(photos, index, albums, viewModel, onDismiss = { fullScreenIndex = null })
     }
+
+    if (showCreateAlbum) {
+        CreateAlbumDialog(
+            onDismiss = { showCreateAlbum = false },
+            onConfirm = { name ->
+                viewModel.createAlbum(name)
+                showCreateAlbum = false
+            }
+        )
+    }
+
+    deletingAlbumId?.let { albumId ->
+        AlertDialog(
+            onDismissRequest = { deletingAlbumId = null },
+            title = { Text(stringResource(R.string.album_delete_confirm)) },
+            text = { Text(stringResource(R.string.album_delete_explain)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteAlbum(albumId)
+                    deletingAlbumId = null
+                }) { Text(stringResource(R.string.messages_delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingAlbumId = null }) { Text(stringResource(R.string.messages_cancel)) }
+            }
+        )
+    }
+}
+
+@Composable
+private fun AlbumChipsRow(
+    albums: List<DecryptedAlbum>,
+    selectedAlbumId: String?,
+    onSelect: (String?) -> Unit,
+    onCreateClick: () -> Unit,
+    onDeleteClick: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        FilterChip(
+            selected = selectedAlbumId == null,
+            onClick = { onSelect(null) },
+            label = { Text(stringResource(R.string.album_all)) }
+        )
+        albums.forEach { album ->
+            FilterChip(
+                selected = selectedAlbumId == album.id,
+                onClick = { onSelect(album.id) },
+                label = { Text(album.name) },
+                trailingIcon = if (selectedAlbumId == album.id) {
+                    {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.album_delete_confirm),
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable { onDeleteClick(album.id) }
+                        )
+                    }
+                } else null
+            )
+        }
+        AssistChip(
+            onClick = onCreateClick,
+            label = { Text(stringResource(R.string.album_new)) },
+            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp)) }
+        )
+    }
+}
+
+@Composable
+private fun CreateAlbumDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.album_new)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.album_name_hint)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
+                Text(stringResource(R.string.pairing_confirm))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.messages_cancel)) } }
+    )
 }
 
 @Composable
@@ -149,6 +264,7 @@ private fun PhotoThumbnail(photo: CouplePhoto, viewModel: PhotosViewModel, onCli
 private fun FullScreenPhotoPagerDialog(
     photos: List<CouplePhoto>,
     initialIndex: Int,
+    albums: List<DecryptedAlbum>,
     viewModel: PhotosViewModel,
     onDismiss: () -> Unit
 ) {
@@ -166,6 +282,7 @@ private fun FullScreenPhotoPagerDialog(
     var isEditingCaption by remember(photo.id) { mutableStateOf(false) }
     var captionDraft by remember(photo.id) { mutableStateOf(viewModel.decryptCaption(photo).orEmpty()) }
     var showDeleteConfirm by remember(photo.id) { mutableStateOf(false) }
+    var showAlbumMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(photo.id) { bitmap = viewModel.loadBitmap(photo) }
 
@@ -233,6 +350,33 @@ private fun FullScreenPhotoPagerDialog(
                     modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
                 ) {
                     Icon(Icons.Default.Download, contentDescription = stringResource(R.string.photos_download), tint = Color.White)
+                }
+                Spacer(Modifier.width(8.dp))
+                Box {
+                    IconButton(
+                        onClick = { showAlbumMenu = true },
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                    ) {
+                        Icon(Icons.Default.PhotoAlbum, contentDescription = stringResource(R.string.album_add_to), tint = Color.White)
+                    }
+                    DropdownMenu(expanded = showAlbumMenu, onDismissRequest = { showAlbumMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.album_none)) },
+                            onClick = {
+                                viewModel.setPhotoAlbum(photo, null)
+                                showAlbumMenu = false
+                            }
+                        )
+                        albums.forEach { album ->
+                            DropdownMenuItem(
+                                text = { Text(album.name) },
+                                onClick = {
+                                    viewModel.setPhotoAlbum(photo, album.id)
+                                    showAlbumMenu = false
+                                }
+                            )
+                        }
+                    }
                 }
                 Spacer(Modifier.width(8.dp))
                 IconButton(

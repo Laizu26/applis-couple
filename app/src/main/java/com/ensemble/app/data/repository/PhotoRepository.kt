@@ -1,6 +1,7 @@
 package com.ensemble.app.data.repository
 
 import com.ensemble.app.data.model.CouplePhoto
+import com.ensemble.app.data.model.PhotoAlbum
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
@@ -57,5 +58,34 @@ class PhotoRepository(
             runCatching { storage.reference.child(photo.storagePath).delete().await() }
         }
         photos(coupleId).document(photo.id).delete().await()
+    }
+
+    suspend fun setPhotoAlbum(coupleId: String, photoId: String, albumId: String?) {
+        photos(coupleId).document(photoId).update("albumId", albumId).await()
+    }
+
+    private fun albums(coupleId: String) =
+        db.collection("couples").document(coupleId).collection("albums")
+
+    fun observeAlbums(coupleId: String): Flow<List<PhotoAlbum>> = callbackFlow {
+        val registration = albums(coupleId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, _ ->
+                val list = snapshot?.documents?.mapNotNull { it.toObject(PhotoAlbum::class.java) }.orEmpty()
+                trySend(list)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    suspend fun createAlbum(coupleId: String, album: PhotoAlbum) {
+        albums(coupleId).document(album.id).set(album).await()
+    }
+
+    suspend fun deleteAlbum(coupleId: String, albumId: String) {
+        albums(coupleId).document(albumId).delete().await()
+        val photosInAlbum = photos(coupleId).whereEqualTo("albumId", albumId).get().await()
+        for (doc in photosInAlbum.documents) {
+            doc.reference.update("albumId", null).await()
+        }
     }
 }

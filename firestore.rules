@@ -62,6 +62,12 @@ service cloud.firestore {
         allow update, delete: if isCoupleMember(coupleId);
       }
 
+      match /albums/{albumId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId) && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if isCoupleMember(coupleId);
+      }
+
       // Les événements sont partagés : les 2 membres du couple peuvent créer, modifier et supprimer
       match /events/{eventId} {
         allow read: if isCoupleMember(coupleId);
@@ -69,10 +75,23 @@ service cloud.firestore {
         allow update, delete: if isCoupleMember(coupleId);
       }
 
-      match /memories/{memoryId} {
+      // Journal par jour : chacun ne peut modifier que son propre passage (+ la photo du jour),
+      // le passage "commun" et la photo restent ouverts aux deux membres.
+      match /journalDays/{dateKey} {
         allow read: if isCoupleMember(coupleId);
-        allow create: if isCoupleMember(coupleId) && request.resource.data.authorId == request.auth.uid;
-        allow update, delete: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId);
+        allow update: if isCoupleMember(coupleId) && (
+          (coupleData(coupleId).user1Id == request.auth.uid &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+             ['dateMillis', 'user1TextIv', 'user1TextCipher', 'commonTextIv', 'commonTextCipher',
+              'photoStoragePath', 'photoIvBase64', 'updatedAt']
+           )) ||
+          (coupleData(coupleId).user2Id == request.auth.uid &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+             ['dateMillis', 'user2TextIv', 'user2TextCipher', 'commonTextIv', 'commonTextCipher',
+              'photoStoragePath', 'photoIvBase64', 'updatedAt']
+           ))
+        );
       }
 
       // Indicateur "en train d'écrire" : chacun n'écrit que son propre document

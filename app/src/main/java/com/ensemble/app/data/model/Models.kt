@@ -117,28 +117,51 @@ data class CouplePhoto(
     val ivBase64: String = "",
     val captionIvBase64: String? = null,
     val captionCipherBase64: String? = null,
+    val albumId: String? = null,
     val timestamp: Long = 0L
 )
 
-data class Memory(
+data class PhotoAlbum(
     val id: String = "",
     val authorId: String = "",
-    val textIv: String = "",
-    val textCipher: String = "",
-    val photoStoragePath: String? = null,
-    val photoIvBase64: String? = null,
-    val memoryDate: Long = 0L,
+    val nameIv: String = "",
+    val nameCipher: String = "",
     val createdAt: Long = 0L
 )
 
-data class DecryptedMemory(
+data class DecryptedAlbum(
     val id: String,
-    val authorId: String,
-    val text: String,
-    val photoStoragePath: String?,
-    val photoIvBase64: String?,
-    val memoryDate: Long,
+    val name: String,
     val createdAt: Long
+)
+
+/**
+ * Une entrée de journal par jour, partagée par le couple : chaque partenaire a son propre
+ * passage (texte chiffré séparément), plus un passage "commun" que les deux peuvent modifier.
+ * L'id du document est la date au format yyyy-MM-dd.
+ */
+data class JournalDay(
+    val id: String = "",
+    val dateMillis: Long = 0L,
+    val user1TextIv: String? = null,
+    val user1TextCipher: String? = null,
+    val user2TextIv: String? = null,
+    val user2TextCipher: String? = null,
+    val commonTextIv: String? = null,
+    val commonTextCipher: String? = null,
+    val photoStoragePath: String? = null,
+    val photoIvBase64: String? = null,
+    val updatedAt: Long = 0L
+)
+
+data class DecryptedJournalDay(
+    val id: String,
+    val dateMillis: Long,
+    val myText: String,
+    val partnerText: String,
+    val commonText: String,
+    val photoStoragePath: String?,
+    val photoIvBase64: String?
 )
 
 /** Référence la dernière version publiée de l'app (doc public app_meta/update, lecture seule côté client). */
