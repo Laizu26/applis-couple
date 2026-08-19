@@ -9,5 +9,12 @@ service firebase.storage {
         (firestore.get(/databases/(default)/documents/couples/$(coupleId)).data.user1Id == request.auth.uid ||
          firestore.get(/databases/(default)/documents/couples/$(coupleId)).data.user2Id == request.auth.uid);
     }
+
+    // APK des nouvelles versions de l'app : lecture pour tout utilisateur connecté,
+    // upload réservé à la console Firebase (pas de write côté client).
+    match /app-releases/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
   }
 }

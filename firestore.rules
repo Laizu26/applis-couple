@@ -23,6 +23,13 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // Référence de la dernière version publiée de l'app (lecture seule côté client ;
+    // mis à jour manuellement via la console Firebase à chaque nouvelle version).
+    match /app_meta/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     match /couples/{coupleId} {
       allow read: if isCoupleMember(coupleId);
 

@@ -141,6 +141,14 @@ data class DecryptedMemory(
     val createdAt: Long
 )
 
+/** Référence la dernière version publiée de l'app (doc public app_meta/update, lecture seule côté client). */
+data class AppUpdateInfo(
+    val versionCode: Int = 0,
+    val versionName: String = "",
+    val apkStoragePath: String = "",
+    val notes: String = ""
+)
+
 data class UserProfile(
     val uid: String = "",
     val email: String = "",

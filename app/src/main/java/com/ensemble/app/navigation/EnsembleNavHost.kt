@@ -44,6 +44,8 @@ import com.ensemble.app.ui.photos.PhotosViewModel
 import com.ensemble.app.ui.presence.PresenceEffect
 import com.ensemble.app.ui.settings.SettingsScreen
 import com.ensemble.app.ui.settings.SettingsViewModel
+import com.ensemble.app.ui.update.UpdateBanner
+import com.ensemble.app.ui.update.UpdateViewModel
 
 private sealed class Tab(val route: String, val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     data object Home : Tab("home", R.string.nav_home, Icons.Default.Home)
@@ -101,7 +103,12 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
     val navController = rememberNavController()
     PresenceEffect(container, myUid)
 
+    val updateViewModel: UpdateViewModel = viewModel(
+        factory = viewModelFactory { initializer { UpdateViewModel(container) } }
+    )
+
     Scaffold(
+        topBar = { UpdateBanner(updateViewModel) },
         bottomBar = {
             NavigationBar {
                 val backStackEntry by navController.currentBackStackEntryAsState()
