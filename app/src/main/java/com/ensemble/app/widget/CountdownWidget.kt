@@ -51,7 +51,17 @@ private fun WidgetContent(snapshot: WidgetPrefs.Snapshot) {
         verticalAlignment = Alignment.Vertical.CenterVertically
     ) {
         val dateMillis = snapshot.dateMillis
-        if (dateMillis == null) {
+        if (snapshot.locked) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = GlanceModifier.size(28.dp)
+            )
+            Text(
+                "🔒 Ouvre l'app",
+                style = TextStyle(color = ColorProvider(WidgetText), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            )
+        } else if (dateMillis == null) {
             Image(
                 provider = ImageProvider(R.drawable.ic_launcher_foreground),
                 contentDescription = null,

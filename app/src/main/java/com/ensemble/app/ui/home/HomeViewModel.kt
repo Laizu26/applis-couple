@@ -85,7 +85,8 @@ class HomeViewModel(
                     container.appContext,
                     featured?.title,
                     featured?.dateMillis,
-                    isPast = featured != null && featured.dateMillis < now
+                    isPast = featured != null && featured.dateMillis < now,
+                    appLockEnabled = container.cryptoManager.isAppLockEnabled
                 )
                 runCatching { CountdownWidget().updateAll(container.appContext) }
             }
@@ -101,11 +102,14 @@ class HomeViewModel(
     fun setMeeting(category: String, label: String, dateMillis: Long) {
         viewModelScope.launch {
             val payload = container.cryptoManager.encryptText(label)
+            // Si la catégorie change, on ne réutilise pas l'id : ça créerait un nouvel événement
+            // au lieu d'écraser un événement passé (ex. transformer un "Ensemble depuis" en "Départ").
+            val reuseId = if (_uiState.value.category == category) _uiState.value.featuredEventId.orEmpty() else ""
             runCatching {
                 container.eventRepository.addEvent(
                     coupleId,
                     CalendarEvent(
-                        id = _uiState.value.featuredEventId.orEmpty(),
+                        id = reuseId,
                         authorId = myUid,
                         category = category,
                         titleIv = payload.ivBase64,

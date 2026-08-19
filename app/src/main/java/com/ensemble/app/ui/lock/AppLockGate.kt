@@ -25,13 +25,16 @@ fun AppLockGate(
     biometricAuthenticator: BiometricAuthenticator,
     content: @Composable () -> Unit
 ) {
-    val lockEnabled = container.cryptoManager.isAppLockEnabled
+    var lockEnabled by remember { mutableStateOf(container.cryptoManager.isAppLockEnabled) }
     var unlocked by remember { mutableStateOf(!lockEnabled) }
 
     DisposableEffect(Unit) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP && container.cryptoManager.isAppLockEnabled) {
-                unlocked = false
+            if (event == Lifecycle.Event.ON_STOP) {
+                // Relu à chaque mise en arrière-plan : si l'utilisateur vient d'activer le
+                // verrouillage dans Réglages sans avoir redémarré l'app, il prend effet ici.
+                lockEnabled = container.cryptoManager.isAppLockEnabled
+                if (lockEnabled) unlocked = false
             }
         }
         val lifecycle = ProcessLifecycleOwner.get().lifecycle
