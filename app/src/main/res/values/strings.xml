@@ -27,6 +27,8 @@
     <string name="home_countdown_until">avant nos retrouvailles</string>
     <string name="home_countdown_today">C\'est aujourd\'hui ! 🎉</string>
     <string name="home_countdown_departure">avant de se quitter</string>
+    <string name="home_upcoming_title">Prochains événements</string>
+    <string name="home_upcoming_see_all">Voir le calendrier</string>
 
     <string name="messages_title">Messages</string>
     <string name="messages_hint">Écris quelque chose de doux…</string>

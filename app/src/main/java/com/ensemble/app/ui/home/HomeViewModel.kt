@@ -36,6 +36,9 @@ class HomeViewModel(
     private val _partnerTimeZoneId = MutableStateFlow<String?>(null)
     val partnerTimeZoneId: StateFlow<String?> = _partnerTimeZoneId
 
+    private val _upcomingEvents = MutableStateFlow<List<DecryptedEvent>>(emptyList())
+    val upcomingEvents: StateFlow<List<DecryptedEvent>> = _upcomingEvents
+
     private var partnerUid: String? = null
 
     init {
@@ -54,9 +57,8 @@ class HomeViewModel(
         }
         viewModelScope.launch {
             container.eventRepository.observeEvents(coupleId).collect { events ->
-                val tracked = events
-                    .filter { it.category in TRACKED_CATEGORIES }
-                    .mapNotNull(::decrypt)
+                val decrypted = events.mapNotNull(::decrypt)
+                val tracked = decrypted.filter { it.category in TRACKED_CATEGORIES }
 
                 val now = System.currentTimeMillis()
                 // Priorité au plus proche événement à venir (Ensemble OU Départ) ; sinon,
@@ -73,6 +75,11 @@ class HomeViewModel(
                         meetingDateMillis = featured?.dateMillis
                     )
                 }
+
+                _upcomingEvents.value = decrypted
+                    .filter { it.dateMillis >= now && it.id != featured?.id }
+                    .sortedBy { it.dateMillis }
+                    .take(3)
 
                 WidgetPrefs.save(
                     container.appContext,

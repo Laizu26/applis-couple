@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
+import com.ensemble.app.data.model.DecryptedEvent
 import com.ensemble.app.data.model.EventCategory
 import com.ensemble.app.ui.theme.RoseContainer
 import com.ensemble.app.ui.theme.RosePrimary
@@ -30,9 +31,10 @@ private val HOME_CATEGORIES = listOf(EventCategory.ENSEMBLE, EventCategory.DEPAR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: HomeViewModel) {
+fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val partnerZoneId by viewModel.partnerTimeZoneId.collectAsStateWithLifecycle()
+    val upcomingEvents by viewModel.upcomingEvents.collectAsStateWithLifecycle()
     var showEditDialog by remember { mutableStateOf(false) }
 
     var tick by remember { mutableStateOf(0L) }
@@ -175,6 +177,11 @@ fun HomeScreen(viewModel: HomeViewModel) {
                     }
                 }
             }
+
+            if (upcomingEvents.isNotEmpty()) {
+                Spacer(Modifier.height(28.dp))
+                UpcomingEventsSection(upcomingEvents, onOpenCalendar)
+            }
         }
     }
 
@@ -189,6 +196,44 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 showEditDialog = false
             }
         )
+    }
+}
+
+@Composable
+private fun UpcomingEventsSection(events: List<DecryptedEvent>, onOpenCalendar: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(stringResource(R.string.home_upcoming_title), style = MaterialTheme.typography.titleMedium)
+            TextButton(onClick = onOpenCalendar) {
+                Text(stringResource(R.string.home_upcoming_see_all))
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        events.forEach { event ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(EventCategory.emoji(event.category), style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    event.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    formatDate(event.dateMillis),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

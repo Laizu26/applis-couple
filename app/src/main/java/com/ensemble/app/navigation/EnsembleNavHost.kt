@@ -133,7 +133,7 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
                 val vm: HomeViewModel = viewModel(
                     factory = viewModelFactory { initializer { HomeViewModel(container, coupleId, myUid) } }
                 )
-                HomeScreen(vm)
+                HomeScreen(vm, onOpenCalendar = { navController.navigate("calendar") })
             }
             composable(Tab.Messages.route) {
                 val vm: MessagesViewModel = viewModel(
