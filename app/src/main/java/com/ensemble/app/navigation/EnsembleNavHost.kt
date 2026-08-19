@@ -135,7 +135,17 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
                 val vm: HomeViewModel = viewModel(
                     factory = viewModelFactory { initializer { HomeViewModel(container, coupleId, myUid) } }
                 )
-                HomeScreen(vm, onOpenCalendar = { navController.navigate("calendar") })
+                HomeScreen(
+                    vm,
+                    onOpenCalendar = { navController.navigate("calendar") },
+                    onOpenMessages = {
+                        navController.navigate(Tab.Messages.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
             composable(Tab.Messages.route) {
                 val vm: MessagesViewModel = viewModel(

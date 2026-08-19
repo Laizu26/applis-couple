@@ -1,22 +1,33 @@
 package com.ensemble.app.ui.home
 
+import android.util.Base64
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ensemble.app.data.AppContainer
 import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.CalendarEvent
+import com.ensemble.app.data.model.CouplePhoto
 import com.ensemble.app.data.model.DecryptedEvent
 import com.ensemble.app.data.model.EventCategory
+import com.ensemble.app.util.compressImage
 import com.ensemble.app.util.nextOccurrenceMillis
 import com.ensemble.app.widget.CountdownWidget
+import com.ensemble.app.widget.PhotoWidget
+import com.ensemble.app.widget.PhotoWidgetPrefs
 import com.ensemble.app.widget.WidgetPrefs
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.UUID
 
 private val TRACKED_CATEGORIES = setOf(EventCategory.ENSEMBLE, EventCategory.DEPART)
+private const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
 
 data class HomeUiState(
     val featuredEventId: String? = null,
@@ -28,6 +39,8 @@ data class HomeUiState(
 
 /** Un événement à venir avec sa date effective déjà résolue (occurrence future si récurrent). */
 data class UpcomingItem(val event: DecryptedEvent, val effectiveDateMillis: Long)
+
+data class WeeklyStats(val messagesThisWeek: Int = 0, val photosThisWeek: Int = 0)
 
 class HomeViewModel(
     private val container: AppContainer,
@@ -47,12 +60,55 @@ class HomeViewModel(
     private val _upcomingEvents = MutableStateFlow<List<UpcomingItem>>(emptyList())
     val upcomingEvents: StateFlow<List<UpcomingItem>> = _upcomingEvents
 
+    private val _ownDisplayName = MutableStateFlow<String?>(null)
+    val ownDisplayName: StateFlow<String?> = _ownDisplayName
+
+    private val _weeklyStats = MutableStateFlow(WeeklyStats())
+    val weeklyStats: StateFlow<WeeklyStats> = _weeklyStats
+
+    private val _memoryOfTheDay = MutableStateFlow<CouplePhoto?>(null)
+    val memoryOfTheDay: StateFlow<CouplePhoto?> = _memoryOfTheDay
+
+    private val _isUploadingQuickPhoto = MutableStateFlow(false)
+    val isUploadingQuickPhoto: StateFlow<Boolean> = _isUploadingQuickPhoto
+
     private var partnerUid: String? = null
     private var partnerDisplayNameCache: String? = null
+    private var lastWidgetPhotoId: String? = null
 
     init {
         viewModelScope.launch {
             runCatching { container.coupleRepository.updateTimeZone(myUid, java.util.TimeZone.getDefault().id) }
+        }
+        viewModelScope.launch {
+            val profile = runCatching { container.coupleRepository.getUserProfile(myUid) }.getOrNull()
+            _ownDisplayName.value = decryptOrNull(profile?.displayNameIv, profile?.displayNameCipher)
+        }
+        viewModelScope.launch {
+            container.messageRepository.observeMessages(coupleId).collect { messages ->
+                val since = System.currentTimeMillis() - WEEK_MS
+                _weeklyStats.update { it.copy(messagesThisWeek = messages.count { m -> m.timestamp >= since }) }
+            }
+        }
+        viewModelScope.launch {
+            container.photoRepository.observePhotos(coupleId).collect { photos ->
+                val since = System.currentTimeMillis() - WEEK_MS
+                _weeklyStats.update { it.copy(photosThisWeek = photos.count { p -> p.timestamp >= since }) }
+                if (photos.isNotEmpty()) {
+                    val dayOfYear = java.time.LocalDate.now().dayOfYear
+                    _memoryOfTheDay.value = photos[dayOfYear % photos.size]
+                }
+
+                val latestPhoto = photos.firstOrNull()
+                if (latestPhoto?.id != lastWidgetPhotoId) {
+                    lastWidgetPhotoId = latestPhoto?.id
+                    val bitmap = latestPhoto?.let {
+                        container.imageLoader.loadBitmap(it.storagePath, it.ivBase64)?.asAndroidBitmap()
+                    }
+                    PhotoWidgetPrefs.save(container.appContext, bitmap, container.cryptoManager.isAppLockEnabled)
+                    runCatching { PhotoWidget().updateAll(container.appContext) }
+                }
+            }
         }
         viewModelScope.launch {
             container.coupleRepository.observeCouple(coupleId).collect { couple ->
@@ -112,6 +168,29 @@ class HomeViewModel(
                 )
                 runCatching { CountdownWidget().updateAll(container.appContext) }
             }
+        }
+    }
+
+    suspend fun loadMemoryBitmap(photo: CouplePhoto): ImageBitmap? =
+        container.imageLoader.loadBitmap(photo.storagePath, photo.ivBase64)
+
+    /** Ajoute une photo à la galerie directement depuis l'accueil, sans passer par l'onglet Photos. */
+    fun quickAddPhoto(rawBytes: ByteArray) {
+        _isUploadingQuickPhoto.value = true
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val (iv, cipherBytes) = container.cryptoManager.encryptBytes(compressImage(rawBytes))
+                    val photo = CouplePhoto(
+                        id = UUID.randomUUID().toString(),
+                        uploaderId = myUid,
+                        ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP),
+                        timestamp = System.currentTimeMillis()
+                    )
+                    container.photoRepository.uploadPhoto(coupleId, photo, cipherBytes)
+                }
+            }
+            _isUploadingQuickPhoto.value = false
         }
     }
 

@@ -30,6 +30,13 @@
     <string name="home_upcoming_title">Prochains événements</string>
     <string name="event_recurring_yearly">Se répète chaque année</string>
     <string name="home_upcoming_see_all">Voir le calendrier</string>
+    <string name="home_greeting_morning">Bonjour</string>
+    <string name="home_greeting_evening">Bonsoir</string>
+    <string name="home_weekly_messages">%1$d messages cette semaine</string>
+    <string name="home_weekly_photos">%1$d photos cette semaine</string>
+    <string name="home_memory_of_day">Souvenir du jour</string>
+    <string name="home_quick_photo">Photo</string>
+    <string name="home_quick_message">Message</string>
 
     <string name="messages_title">Messages</string>
     <string name="messages_partner_online">🟢 En ligne</string>

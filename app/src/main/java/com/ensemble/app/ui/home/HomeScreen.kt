@@ -1,22 +1,34 @@
 package com.ensemble.app.ui.home
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
+import com.ensemble.app.data.model.CouplePhoto
 import com.ensemble.app.data.model.EventCategory
 import com.ensemble.app.ui.theme.RoseContainer
 import com.ensemble.app.ui.theme.RosePrimary
@@ -30,12 +42,26 @@ private val HOME_CATEGORIES = listOf(EventCategory.ENSEMBLE, EventCategory.DEPAR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
+fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}, onOpenMessages: () -> Unit = {}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val partnerZoneId by viewModel.partnerTimeZoneId.collectAsStateWithLifecycle()
     val partnerLabel by viewModel.partnerLabel.collectAsStateWithLifecycle()
     val upcomingEvents by viewModel.upcomingEvents.collectAsStateWithLifecycle()
+    val ownDisplayName by viewModel.ownDisplayName.collectAsStateWithLifecycle()
+    val weeklyStats by viewModel.weeklyStats.collectAsStateWithLifecycle()
+    val memoryOfTheDay by viewModel.memoryOfTheDay.collectAsStateWithLifecycle()
+    val isUploadingQuickPhoto by viewModel.isUploadingQuickPhoto.collectAsStateWithLifecycle()
     var showEditDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    val pickQuickPhoto = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null) viewModel.quickAddPhoto(bytes)
+        }
+    }
 
     var tick by remember { mutableStateOf(0L) }
     LaunchedEffect(Unit) {
@@ -49,10 +75,26 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            val greetingRes = remember {
+                val hour = java.time.LocalTime.now().hour
+                if (hour in 5..17) R.string.home_greeting_morning else R.string.home_greeting_evening
+            }
+            Text(
+                text = ownDisplayName?.takeIf { it.isNotBlank() }
+                    ?.let { "${stringResource(greetingRes)}, $it 💕" }
+                    ?: stringResource(greetingRes),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            )
+
             val dateMillis = uiState.meetingDateMillis
             if (dateMillis == null) {
                 Icon(
@@ -178,6 +220,23 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
                 }
             }
 
+            if (weeklyStats.messagesThisWeek > 0 || weeklyStats.photosThisWeek > 0) {
+                Spacer(Modifier.height(28.dp))
+                WeeklyStatsRow(weeklyStats)
+            }
+
+            memoryOfTheDay?.let { photo ->
+                Spacer(Modifier.height(20.dp))
+                MemoryOfTheDayCard(photo, viewModel)
+            }
+
+            Spacer(Modifier.height(20.dp))
+            QuickActionsRow(
+                isUploading = isUploadingQuickPhoto,
+                onAddPhoto = { pickQuickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onOpenMessages = onOpenMessages
+            )
+
             if (upcomingEvents.isNotEmpty()) {
                 Spacer(Modifier.height(28.dp))
                 UpcomingEventsSection(upcomingEvents, onOpenCalendar)
@@ -197,6 +256,108 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
                 showEditDialog = false
             }
         )
+    }
+}
+
+@Composable
+private fun WeeklyStatsRow(stats: WeeklyStats) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        StatCard(
+            text = stringResource(R.string.home_weekly_messages, stats.messagesThisWeek),
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            text = stringResource(R.string.home_weekly_photos, stats.photosThisWeek),
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun StatCard(text: String, modifier: Modifier = Modifier) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = modifier
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 14.dp, horizontal = 12.dp)
+        )
+    }
+}
+
+@Composable
+private fun MemoryOfTheDayCard(photo: CouplePhoto, viewModel: HomeViewModel) {
+    var bitmap by remember(photo.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(photo.id) { bitmap = viewModel.loadMemoryBitmap(photo) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(R.string.home_memory_of_day),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
+        Card(
+            shape = MaterialTheme.shapes.extraLarge,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(MaterialTheme.shapes.extraLarge)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                val current = bitmap
+                if (current != null) {
+                    Image(
+                        bitmap = current,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionsRow(isUploading: Boolean, onAddPhoto: () -> Unit, onOpenMessages: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        OutlinedButton(
+            onClick = onAddPhoto,
+            enabled = !isUploading,
+            modifier = Modifier.weight(1f)
+        ) {
+            if (isUploading) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(Icons.Default.Photo, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.home_quick_photo))
+            }
+        }
+        OutlinedButton(
+            onClick = onOpenMessages,
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(Icons.Default.ChatBubble, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.home_quick_message))
+        }
     }
 }
 
