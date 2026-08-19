@@ -16,7 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,6 +51,12 @@ class MessagesViewModel(
     private val _partnerOnline = MutableStateFlow(false)
     val partnerOnline: StateFlow<Boolean> = _partnerOnline
 
+    private val _partnerNickname = MutableStateFlow<String?>(null)
+    private val _partnerDisplayName = MutableStateFlow<String?>(null)
+    val partnerLabel: StateFlow<String?> = combine(_partnerNickname, _partnerDisplayName) { nickname, displayName ->
+        nickname?.takeIf { it.isNotBlank() } ?: displayName?.takeIf { it.isNotBlank() }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     val currentUserId: String get() = myUid
 
     private val _playingMessageId = MutableStateFlow<String?>(null)
@@ -61,7 +70,12 @@ class MessagesViewModel(
     init {
         viewModelScope.launch {
             container.coupleRepository.observeCouple(coupleId).collect { couple ->
-                val partner = couple?.let { if (it.user1Id == myUid) it.user2Id else it.user1Id }
+                if (couple == null) return@collect
+                val isUser1 = couple.user1Id == myUid
+                val partner = if (isUser1) couple.user2Id else couple.user1Id
+                val nicknameIv = if (isUser1) couple.nicknameByUser1Iv else couple.nicknameByUser2Iv
+                val nicknameCipher = if (isUser1) couple.nicknameByUser1Cipher else couple.nicknameByUser2Cipher
+                _partnerNickname.value = decryptOrNull(nicknameIv, nicknameCipher)
                 if (partner != null && partner != partnerUid) {
                     partnerUid = partner
                     observePartnerSignals(partner)
@@ -92,9 +106,17 @@ class MessagesViewModel(
         }
         viewModelScope.launch {
             runCatching {
-                container.coupleRepository.observeUserProfile(partner).collect { _partnerOnline.value = it?.online == true }
+                container.coupleRepository.observeUserProfile(partner).collect { profile ->
+                    _partnerOnline.value = profile?.online == true
+                    _partnerDisplayName.value = decryptOrNull(profile?.displayNameIv, profile?.displayNameCipher)
+                }
             }
         }
+    }
+
+    private fun decryptOrNull(iv: String?, cipher: String?): String? {
+        if (iv == null || cipher == null) return null
+        return runCatching { container.cryptoManager.decryptText(EncryptedPayload(iv, cipher)) }.getOrNull()
     }
 
     private fun decrypt(msg: ChatMessage): DecryptedMessage? = runCatching {

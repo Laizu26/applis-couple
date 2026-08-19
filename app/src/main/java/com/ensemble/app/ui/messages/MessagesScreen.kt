@@ -2,6 +2,8 @@ package com.ensemble.app.ui.messages
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -28,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -39,6 +43,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
 import com.ensemble.app.data.audio.VoiceRecorder
+import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.DecryptedMessage
 import com.ensemble.app.data.model.MessageType
 import com.ensemble.app.ui.theme.BubbleMine
@@ -57,6 +62,7 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
     val partnerTyping by viewModel.partnerTyping.collectAsStateWithLifecycle()
     val partnerReadTimestamp by viewModel.partnerReadTimestamp.collectAsStateWithLifecycle()
     val partnerOnline by viewModel.partnerOnline.collectAsStateWithLifecycle()
+    val partnerLabel by viewModel.partnerLabel.collectAsStateWithLifecycle()
     val playingMessageId by viewModel.playingMessageId.collectAsStateWithLifecycle()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -116,7 +122,7 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
             TopAppBar(
                 title = {
                     Column {
-                        Text(stringResource(R.string.messages_title))
+                        Text(partnerLabel ?: stringResource(R.string.messages_title))
                         Text(
                             stringResource(if (partnerOnline) R.string.messages_partner_online else R.string.messages_partner_offline),
                             style = MaterialTheme.typography.labelLarge,
@@ -468,6 +474,21 @@ private fun EditMessageDialog(initialText: String, onDismiss: () -> Unit, onConf
 private fun FullScreenChatPhotoDialog(message: DecryptedMessage, viewModel: MessagesViewModel, onDismiss: () -> Unit) {
     var bitmap by remember(message.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     LaunchedEffect(message.id) { bitmap = viewModel.loadPhotoBitmap(message) }
+    val context = LocalContext.current
+
+    fun downloadPhoto() {
+        val current = bitmap ?: return
+        val saved = MediaSaver.saveImage(context, current.asAndroidBitmap())
+        Toast.makeText(
+            context,
+            context.getString(if (saved) R.string.photos_download_success else R.string.photos_download_error),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    val storagePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) downloadPhoto() }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -482,14 +503,34 @@ private fun FullScreenChatPhotoDialog(message: DecryptedMessage, viewModel: Mess
             } else {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
-            IconButton(
-                onClick = onDismiss,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(12.dp)
-                    .background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                IconButton(
+                    onClick = {
+                        val needsPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+                            PackageManager.PERMISSION_GRANTED
+                        if (needsPermission) {
+                            storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                        } else {
+                            downloadPhoto()
+                        }
+                    },
+                    enabled = bitmap != null,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = stringResource(R.string.photos_download), tint = Color.White)
+                }
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                }
             }
         }
     }

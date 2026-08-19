@@ -1,8 +1,11 @@
 package com.ensemble.app.ui.settings
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -14,6 +17,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
 
 @Composable
@@ -22,10 +26,21 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
+    val ownDisplayName by viewModel.ownDisplayName.collectAsStateWithLifecycle()
+    val partnerDisplayName by viewModel.partnerDisplayName.collectAsStateWithLifecycle()
+    val partnerNickname by viewModel.partnerNickname.collectAsStateWithLifecycle()
+    var nameDraft by remember(ownDisplayName) { mutableStateOf(ownDisplayName) }
+    var nicknameDraft by remember(partnerNickname) { mutableStateOf(partnerNickname) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(20.dp)
+    ) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
     ) {
         Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
@@ -33,7 +48,56 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(20.dp))
+        Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(stringResource(R.string.settings_display_name), style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = nameDraft,
+                    onValueChange = { nameDraft = it },
+                    placeholder = { Text(stringResource(R.string.settings_display_name_hint)) },
+                    singleLine = true,
+                    trailingIcon = {
+                        if (nameDraft != ownDisplayName) {
+                            IconButton(onClick = { viewModel.setOwnDisplayName(nameDraft) }) {
+                                Icon(Icons.Default.Check, contentDescription = stringResource(R.string.messages_save))
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    partnerDisplayName?.takeIf { it.isNotBlank() }
+                        ?.let { stringResource(R.string.settings_nickname_for, it) }
+                        ?: stringResource(R.string.settings_nickname_generic),
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = nicknameDraft,
+                    onValueChange = { nicknameDraft = it },
+                    placeholder = { Text(stringResource(R.string.settings_nickname_hint)) },
+                    singleLine = true,
+                    trailingIcon = {
+                        if (nicknameDraft != partnerNickname) {
+                            IconButton(onClick = { viewModel.setPartnerNickname(nicknameDraft) }) {
+                                Icon(Icons.Default.Check, contentDescription = stringResource(R.string.messages_save))
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
         Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(stringResource(R.string.settings_pairing_code), style = MaterialTheme.typography.titleLarge)
@@ -108,7 +172,9 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             }
         }
 
-        Spacer(Modifier.weight(1f))
+    }
+
+        Spacer(Modifier.height(16.dp))
 
         OutlinedButton(
             onClick = { showLogoutConfirm = true },

@@ -170,7 +170,7 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
             }
             composable("settings") {
                 val vm: SettingsViewModel = viewModel(
-                    factory = viewModelFactory { initializer { SettingsViewModel(container, coupleId) } }
+                    factory = viewModelFactory { initializer { SettingsViewModel(container, coupleId, myUid) } }
                 )
                 SettingsScreen(vm)
             }

@@ -50,8 +50,16 @@
     <string name="photos_caption_hint">Ajouter une légende…</string>
     <string name="photos_caption_save">Enregistrer</string>
     <string name="photos_delete_confirm">Supprimer cette photo ?</string>
+    <string name="photos_download">Télécharger</string>
+    <string name="photos_download_success">Photo enregistrée dans la galerie</string>
+    <string name="photos_download_error">Échec de l\'enregistrement</string>
 
     <string name="settings_title">Réglages</string>
+    <string name="settings_display_name">Ton prénom</string>
+    <string name="settings_display_name_hint">Comment tu t\'appelles</string>
+    <string name="settings_nickname_for">Surnom pour %1$s</string>
+    <string name="settings_nickname_generic">Surnom pour ton/ta partenaire</string>
+    <string name="settings_nickname_hint">Comment tu l\'appelles</string>
     <string name="settings_pairing_code">Code d\'appairage</string>
     <string name="settings_pairing_code_explain">Utile pour relier un nouvel appareil à votre couple. À ne partager qu\'avec votre partenaire.</string>
     <string name="settings_pairing_code_show">Afficher le code</string>

@@ -41,10 +41,14 @@ class HomeViewModel(
     private val _partnerTimeZoneId = MutableStateFlow<String?>(null)
     val partnerTimeZoneId: StateFlow<String?> = _partnerTimeZoneId
 
+    private val _partnerLabel = MutableStateFlow<String?>(null)
+    val partnerLabel: StateFlow<String?> = _partnerLabel
+
     private val _upcomingEvents = MutableStateFlow<List<UpcomingItem>>(emptyList())
     val upcomingEvents: StateFlow<List<UpcomingItem>> = _upcomingEvents
 
     private var partnerUid: String? = null
+    private var partnerDisplayNameCache: String? = null
 
     init {
         viewModelScope.launch {
@@ -52,12 +56,20 @@ class HomeViewModel(
         }
         viewModelScope.launch {
             container.coupleRepository.observeCouple(coupleId).collect { couple ->
-                val partner = couple?.let { if (it.user1Id == myUid) it.user2Id else it.user1Id }
+                if (couple == null) return@collect
+                val isUser1 = couple.user1Id == myUid
+                val partner = if (isUser1) couple.user2Id else couple.user1Id
+                val nicknameIv = if (isUser1) couple.nicknameByUser1Iv else couple.nicknameByUser2Iv
+                val nicknameCipher = if (isUser1) couple.nicknameByUser1Cipher else couple.nicknameByUser2Cipher
+                val nickname = decryptOrNull(nicknameIv, nicknameCipher)
+
                 if (partner != null && partner != partnerUid) {
                     partnerUid = partner
                     val profile = runCatching { container.coupleRepository.getUserProfile(partner) }.getOrNull()
                     _partnerTimeZoneId.value = profile?.timeZoneId
+                    partnerDisplayNameCache = decryptOrNull(profile?.displayNameIv, profile?.displayNameCipher)
                 }
+                _partnerLabel.value = nickname?.takeIf { it.isNotBlank() } ?: partnerDisplayNameCache?.takeIf { it.isNotBlank() }
             }
         }
         viewModelScope.launch {
@@ -101,6 +113,11 @@ class HomeViewModel(
                 runCatching { CountdownWidget().updateAll(container.appContext) }
             }
         }
+    }
+
+    private fun decryptOrNull(iv: String?, cipher: String?): String? {
+        if (iv == null || cipher == null) return null
+        return runCatching { container.cryptoManager.decryptText(EncryptedPayload(iv, cipher)) }.getOrNull()
     }
 
     private fun decrypt(event: CalendarEvent): DecryptedEvent? = runCatching {

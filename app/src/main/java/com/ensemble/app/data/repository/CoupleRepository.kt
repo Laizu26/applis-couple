@@ -66,4 +66,21 @@ class CoupleRepository(private val db: FirebaseFirestore) {
         }
         awaitClose { registration.remove() }
     }
+
+    suspend fun updateDisplayName(uid: String, ivBase64: String, cipherTextBase64: String) {
+        users().document(uid).set(
+            mapOf("displayNameIv" to ivBase64, "displayNameCipher" to cipherTextBase64),
+            com.google.firebase.firestore.SetOptions.merge()
+        ).await()
+    }
+
+    /** Enregistre le surnom que l'utilisateur courant (user1 ou user2 du couple) donne à son/sa partenaire. */
+    suspend fun updateNickname(coupleId: String, isUser1: Boolean, ivBase64: String, cipherTextBase64: String) {
+        val ivField = if (isUser1) "nicknameByUser1Iv" else "nicknameByUser2Iv"
+        val cipherField = if (isUser1) "nicknameByUser1Cipher" else "nicknameByUser2Cipher"
+        couples().document(coupleId).set(
+            mapOf(ivField to ivBase64, cipherField to cipherTextBase64),
+            com.google.firebase.firestore.SetOptions.merge()
+        ).await()
+    }
 }

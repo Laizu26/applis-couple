@@ -33,6 +33,7 @@ private val HOME_CATEGORIES = listOf(EventCategory.ENSEMBLE, EventCategory.DEPAR
 fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val partnerZoneId by viewModel.partnerTimeZoneId.collectAsStateWithLifecycle()
+    val partnerLabel by viewModel.partnerLabel.collectAsStateWithLifecycle()
     val upcomingEvents by viewModel.upcomingEvents.collectAsStateWithLifecycle()
     var showEditDialog by remember { mutableStateOf(false) }
 
@@ -169,7 +170,7 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
                         Spacer(Modifier.width(6.dp))
                         val offsetText = offset?.let { if (it >= 0) " (UTC${if (it == 0) "" else "+$it"})" else " (UTC$it)" }.orEmpty()
                         Text(
-                            "Il est $partnerTime chez ta moitié$offsetText",
+                            "Il est $partnerTime chez ${partnerLabel ?: "ta moitié"}$offsetText",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

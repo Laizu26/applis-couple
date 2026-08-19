@@ -4,6 +4,11 @@ data class Couple(
     val id: String = "",
     val user1Id: String = "",
     val user2Id: String? = null,
+    // Surnom que user1 a donné à user2, et vice versa (chiffrés avec la clé du couple).
+    val nicknameByUser1Iv: String? = null,
+    val nicknameByUser1Cipher: String? = null,
+    val nicknameByUser2Iv: String? = null,
+    val nicknameByUser2Cipher: String? = null,
     val createdAt: Long = 0L
 )
 
@@ -143,5 +148,7 @@ data class UserProfile(
     val fcmToken: String? = null,
     val timeZoneId: String? = null,
     val online: Boolean = false,
-    val lastActiveAt: Long = 0L
+    val lastActiveAt: Long = 0L,
+    val displayNameIv: String? = null,
+    val displayNameCipher: String? = null
 )
