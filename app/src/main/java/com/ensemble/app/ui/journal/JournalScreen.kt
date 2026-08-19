@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Close
@@ -29,14 +30,23 @@ import com.ensemble.app.util.formatDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JournalScreen(viewModel: JournalViewModel) {
+fun JournalScreen(viewModel: JournalViewModel, onBack: () -> Unit = {}) {
     val memories by viewModel.memories.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var deletingId by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.journal_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.journal_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back))
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
                 if (isSaving) {

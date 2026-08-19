@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
@@ -73,7 +74,7 @@ private fun eventsOnDate(events: List<DecryptedEvent>, date: LocalDate): List<De
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(viewModel: CalendarViewModel) {
+fun CalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit = {}) {
     val events by viewModel.events.collectAsStateWithLifecycle()
     var visibleMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -83,7 +84,16 @@ fun CalendarScreen(viewModel: CalendarViewModel) {
     val eventsByDate = remember(events, visibleMonth) { eventsForMonth(events, visibleMonth) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.calendar_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.calendar_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back))
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.calendar_add))

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
@@ -20,8 +21,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel) {
+fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit = {}) {
     var codeVisible by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
@@ -32,9 +34,22 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     var nameDraft by remember(ownDisplayName) { mutableStateOf(ownDisplayName) }
     var nicknameDraft by remember(partnerNickname) { mutableStateOf(partnerNickname) }
 
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back))
+                    }
+                }
+            )
+        }
+    ) { padding ->
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(padding)
             .padding(20.dp)
     ) {
     Column(
@@ -42,8 +57,6 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             .weight(1f)
             .verticalScroll(rememberScrollState())
     ) {
-        Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(8.dp))
         viewModel.userEmail?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -185,6 +198,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.settings_logout))
         }
+    }
     }
 
     if (showLogoutConfirm) {

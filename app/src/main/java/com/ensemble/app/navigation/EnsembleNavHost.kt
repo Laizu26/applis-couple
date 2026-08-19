@@ -170,19 +170,19 @@ private fun MainScaffold(container: AppContainer, coupleId: String, myUid: Strin
                 val vm: CalendarViewModel = viewModel(
                     factory = viewModelFactory { initializer { CalendarViewModel(container, coupleId, myUid) } }
                 )
-                CalendarScreen(vm)
+                CalendarScreen(vm, onBack = { navController.popBackStack() })
             }
             composable("journal") {
                 val vm: JournalViewModel = viewModel(
                     factory = viewModelFactory { initializer { JournalViewModel(container, coupleId, myUid) } }
                 )
-                JournalScreen(vm)
+                JournalScreen(vm, onBack = { navController.popBackStack() })
             }
             composable("settings") {
                 val vm: SettingsViewModel = viewModel(
                     factory = viewModelFactory { initializer { SettingsViewModel(container, coupleId, myUid) } }
                 )
-                SettingsScreen(vm)
+                SettingsScreen(vm, onBack = { navController.popBackStack() })
             }
         }
     }
