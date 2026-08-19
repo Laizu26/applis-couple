@@ -8,6 +8,7 @@ import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.CalendarEvent
 import com.ensemble.app.data.model.DecryptedEvent
 import com.ensemble.app.data.model.EventCategory
+import com.ensemble.app.util.nextOccurrenceMillis
 import com.ensemble.app.widget.CountdownWidget
 import com.ensemble.app.widget.WidgetPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,8 +22,12 @@ data class HomeUiState(
     val featuredEventId: String? = null,
     val category: String = EventCategory.ENSEMBLE,
     val label: String? = null,
-    val meetingDateMillis: Long? = null
+    val meetingDateMillis: Long? = null,
+    val recurringYearly: Boolean = false
 )
+
+/** Un événement à venir avec sa date effective déjà résolue (occurrence future si récurrent). */
+data class UpcomingItem(val event: DecryptedEvent, val effectiveDateMillis: Long)
 
 class HomeViewModel(
     private val container: AppContainer,
@@ -36,8 +41,8 @@ class HomeViewModel(
     private val _partnerTimeZoneId = MutableStateFlow<String?>(null)
     val partnerTimeZoneId: StateFlow<String?> = _partnerTimeZoneId
 
-    private val _upcomingEvents = MutableStateFlow<List<DecryptedEvent>>(emptyList())
-    val upcomingEvents: StateFlow<List<DecryptedEvent>> = _upcomingEvents
+    private val _upcomingEvents = MutableStateFlow<List<UpcomingItem>>(emptyList())
+    val upcomingEvents: StateFlow<List<UpcomingItem>> = _upcomingEvents
 
     private var partnerUid: String? = null
 
@@ -57,35 +62,40 @@ class HomeViewModel(
         }
         viewModelScope.launch {
             container.eventRepository.observeEvents(coupleId).collect { events ->
+                val now = System.currentTimeMillis()
                 val decrypted = events.mapNotNull(::decrypt)
+                fun effectiveDate(e: DecryptedEvent) = nextOccurrenceMillis(e.dateMillis, e.recurringYearly, now)
+
                 val tracked = decrypted.filter { it.category in TRACKED_CATEGORIES }
 
-                val now = System.currentTimeMillis()
                 // Priorité au plus proche événement à venir (Ensemble OU Départ) ; sinon,
                 // dernière fois qu'on a été "Ensemble" dans le passé.
-                val featured = tracked.filter { it.dateMillis >= now }.minByOrNull { it.dateMillis }
-                    ?: tracked.filter { it.category == EventCategory.ENSEMBLE && it.dateMillis < now }
+                val featured = tracked.filter { effectiveDate(it) >= now }.minByOrNull { effectiveDate(it) }
+                    ?: tracked.filter { it.category == EventCategory.ENSEMBLE && !it.recurringYearly && it.dateMillis < now }
                         .maxByOrNull { it.dateMillis }
+                val featuredEffectiveDate = featured?.let { effectiveDate(it) }
 
                 _uiState.update { current ->
                     current.copy(
                         featuredEventId = featured?.id,
                         category = featured?.category ?: EventCategory.ENSEMBLE,
                         label = featured?.title,
-                        meetingDateMillis = featured?.dateMillis
+                        meetingDateMillis = featuredEffectiveDate,
+                        recurringYearly = featured?.recurringYearly ?: false
                     )
                 }
 
                 _upcomingEvents.value = decrypted
-                    .filter { it.dateMillis >= now && it.id != featured?.id }
-                    .sortedBy { it.dateMillis }
+                    .map { UpcomingItem(it, effectiveDate(it)) }
+                    .filter { it.effectiveDateMillis >= now && it.event.id != featured?.id }
+                    .sortedBy { it.effectiveDateMillis }
                     .take(3)
 
                 WidgetPrefs.save(
                     container.appContext,
                     featured?.title,
-                    featured?.dateMillis,
-                    isPast = featured != null && featured.dateMillis < now,
+                    featuredEffectiveDate,
+                    isPast = featuredEffectiveDate != null && featuredEffectiveDate < now,
                     appLockEnabled = container.cryptoManager.isAppLockEnabled
                 )
                 runCatching { CountdownWidget().updateAll(container.appContext) }
@@ -95,11 +105,11 @@ class HomeViewModel(
 
     private fun decrypt(event: CalendarEvent): DecryptedEvent? = runCatching {
         val title = container.cryptoManager.decryptText(EncryptedPayload(event.titleIv, event.titleCipher))
-        DecryptedEvent(event.id, event.authorId, event.category, title, event.dateMillis, event.createdAt)
+        DecryptedEvent(event.id, event.authorId, event.category, title, event.dateMillis, event.recurringYearly, event.createdAt)
     }.getOrNull()
 
     /** Crée ou met à jour (si édition) l'événement mis en avant sur l'accueil (Ensemble ou Départ). */
-    fun setMeeting(category: String, label: String, dateMillis: Long) {
+    fun setMeeting(category: String, label: String, dateMillis: Long, recurringYearly: Boolean) {
         viewModelScope.launch {
             val payload = container.cryptoManager.encryptText(label)
             // Si la catégorie change, on ne réutilise pas l'id : ça créerait un nouvel événement
@@ -115,6 +125,7 @@ class HomeViewModel(
                         titleIv = payload.ivBase64,
                         titleCipher = payload.cipherTextBase64,
                         dateMillis = dateMillis,
+                        recurringYearly = recurringYearly,
                         createdAt = System.currentTimeMillis()
                     )
                 )

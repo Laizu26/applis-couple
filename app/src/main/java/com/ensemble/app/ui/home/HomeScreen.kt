@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
-import com.ensemble.app.data.model.DecryptedEvent
 import com.ensemble.app.data.model.EventCategory
 import com.ensemble.app.ui.theme.RoseContainer
 import com.ensemble.app.ui.theme.RosePrimary
@@ -190,9 +189,10 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
             initialCategory = uiState.category,
             initialLabel = uiState.label.orEmpty(),
             initialDateMillis = uiState.meetingDateMillis,
+            initialRecurring = uiState.recurringYearly,
             onDismiss = { showEditDialog = false },
-            onConfirm = { category, label, dateMillis ->
-                viewModel.setMeeting(category, label, dateMillis)
+            onConfirm = { category, label, dateMillis, recurring ->
+                viewModel.setMeeting(category, label, dateMillis, recurring)
                 showEditDialog = false
             }
         )
@@ -200,7 +200,7 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenCalendar: () -> Unit = {}) {
 }
 
 @Composable
-private fun UpcomingEventsSection(events: List<DecryptedEvent>, onOpenCalendar: () -> Unit) {
+private fun UpcomingEventsSection(items: List<UpcomingItem>, onOpenCalendar: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -213,22 +213,22 @@ private fun UpcomingEventsSection(events: List<DecryptedEvent>, onOpenCalendar: 
             }
         }
         Spacer(Modifier.height(4.dp))
-        events.forEach { event ->
+        items.forEach { item ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(EventCategory.emoji(event.category), style = MaterialTheme.typography.bodyLarge)
+                Text(EventCategory.emoji(item.event.category), style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    event.title,
+                    item.event.title,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    formatDate(event.dateMillis),
+                    formatDate(item.effectiveDateMillis),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -243,11 +243,13 @@ private fun EditMeetingDialog(
     initialCategory: String,
     initialLabel: String,
     initialDateMillis: Long?,
+    initialRecurring: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (category: String, label: String, dateMillis: Long) -> Unit
+    onConfirm: (category: String, label: String, dateMillis: Long, recurring: Boolean) -> Unit
 ) {
     var category by remember { mutableStateOf(initialCategory) }
     var label by remember { mutableStateOf(initialLabel) }
+    var recurring by remember { mutableStateOf(initialRecurring) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialDateMillis)
 
     AlertDialog(
@@ -256,7 +258,7 @@ private fun EditMeetingDialog(
             TextButton(
                 onClick = {
                     val selected = datePickerState.selectedDateMillis
-                    if (selected != null) onConfirm(category, label, selected)
+                    if (selected != null) onConfirm(category, label, selected, recurring)
                 }
             ) { Text(stringResource(R.string.pairing_confirm)) }
         },
@@ -282,6 +284,10 @@ private fun EditMeetingDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 DatePicker(state = datePickerState, showModeToggle = false)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = recurring, onCheckedChange = { recurring = it })
+                    Text(stringResource(R.string.event_recurring_yearly), style = MaterialTheme.typography.bodyMedium)
+                }
             }
         }
     )

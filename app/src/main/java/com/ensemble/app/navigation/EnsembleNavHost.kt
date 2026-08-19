@@ -41,6 +41,7 @@ import com.ensemble.app.ui.pairing.PairingScreen
 import com.ensemble.app.ui.pairing.PairingViewModel
 import com.ensemble.app.ui.photos.PhotosScreen
 import com.ensemble.app.ui.photos.PhotosViewModel
+import com.ensemble.app.ui.presence.PresenceEffect
 import com.ensemble.app.ui.settings.SettingsScreen
 import com.ensemble.app.ui.settings.SettingsViewModel
 
@@ -98,6 +99,7 @@ private fun FullScreenLoading() {
 @Composable
 private fun MainScaffold(container: AppContainer, coupleId: String, myUid: String) {
     val navController = rememberNavController()
+    PresenceEffect(container, myUid)
 
     Scaffold(
         bottomBar = {

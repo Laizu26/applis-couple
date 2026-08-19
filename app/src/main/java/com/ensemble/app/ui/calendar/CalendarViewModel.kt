@@ -30,10 +30,10 @@ class CalendarViewModel(
 
     private fun decrypt(event: CalendarEvent): DecryptedEvent? = runCatching {
         val title = container.cryptoManager.decryptText(EncryptedPayload(event.titleIv, event.titleCipher))
-        DecryptedEvent(event.id, event.authorId, event.category, title, event.dateMillis, event.createdAt)
+        DecryptedEvent(event.id, event.authorId, event.category, title, event.dateMillis, event.recurringYearly, event.createdAt)
     }.getOrNull()
 
-    fun addEvent(category: String, title: String, dateMillis: Long) {
+    fun addEvent(category: String, title: String, dateMillis: Long, recurringYearly: Boolean) {
         if (title.isBlank()) return
         viewModelScope.launch {
             val payload = container.cryptoManager.encryptText(title)
@@ -46,6 +46,7 @@ class CalendarViewModel(
                         titleIv = payload.ivBase64,
                         titleCipher = payload.cipherTextBase64,
                         dateMillis = dateMillis,
+                        recurringYearly = recurringYearly,
                         createdAt = System.currentTimeMillis()
                     )
                 )

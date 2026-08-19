@@ -53,6 +53,7 @@ data class CalendarEvent(
     val titleIv: String = "",
     val titleCipher: String = "",
     val dateMillis: Long = 0L,
+    val recurringYearly: Boolean = false,
     val createdAt: Long = 0L
 )
 
@@ -62,6 +63,7 @@ data class DecryptedEvent(
     val category: String,
     val title: String,
     val dateMillis: Long,
+    val recurringYearly: Boolean,
     val createdAt: Long
 )
 
@@ -139,5 +141,7 @@ data class UserProfile(
     val email: String = "",
     val coupleId: String? = null,
     val fcmToken: String? = null,
-    val timeZoneId: String? = null
+    val timeZoneId: String? = null,
+    val online: Boolean = false,
+    val lastActiveAt: Long = 0L
 )

@@ -50,11 +50,13 @@ import kotlinx.coroutines.launch
 
 private val QUICK_REACTIONS = listOf("❤️", "😂", "😮", "😢", "👍")
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessagesScreen(viewModel: MessagesViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val partnerTyping by viewModel.partnerTyping.collectAsStateWithLifecycle()
     val partnerReadTimestamp by viewModel.partnerReadTimestamp.collectAsStateWithLifecycle()
+    val partnerOnline by viewModel.partnerOnline.collectAsStateWithLifecycle()
     val playingMessageId by viewModel.playingMessageId.collectAsStateWithLifecycle()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -109,7 +111,23 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
         }
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(stringResource(R.string.messages_title))
+                        Text(
+                            stringResource(if (partnerOnline) R.string.messages_partner_online else R.string.messages_partner_offline),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (partnerOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
     Column(modifier = Modifier.fillMaxSize().padding(padding)) {
         LazyColumn(
             state = listState,

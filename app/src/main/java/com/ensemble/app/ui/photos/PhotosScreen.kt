@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
@@ -133,6 +134,7 @@ private fun FullScreenPhotoDialog(photo: CouplePhoto, viewModel: PhotosViewModel
     var bitmap by remember(photo.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var isEditingCaption by remember(photo.id) { mutableStateOf(false) }
     var captionDraft by remember(photo.id) { mutableStateOf(viewModel.decryptCaption(photo).orEmpty()) }
+    var showDeleteConfirm by remember(photo.id) { mutableStateOf(false) }
 
     LaunchedEffect(photo.id) { bitmap = viewModel.loadBitmap(photo) }
 
@@ -159,14 +161,24 @@ private fun FullScreenPhotoDialog(photo: CouplePhoto, viewModel: PhotosViewModel
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
 
-            IconButton(
-                onClick = onDismiss,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(12.dp)
-                    .background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                IconButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.messages_delete), tint = Color.White)
+                }
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                }
             }
 
             Column(
@@ -214,5 +226,22 @@ private fun FullScreenPhotoDialog(photo: CouplePhoto, viewModel: PhotosViewModel
                 }
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.photos_delete_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deletePhoto(photo)
+                    showDeleteConfirm = false
+                    onDismiss()
+                }) { Text(stringResource(R.string.messages_delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.messages_cancel)) }
+            }
+        )
     }
 }

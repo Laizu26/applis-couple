@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import com.ensemble.app.R
 import com.ensemble.app.data.model.DecryptedEvent
 import com.ensemble.app.data.model.EventCategory
 import com.ensemble.app.util.formatDate
+import com.ensemble.app.util.occurrenceInYear
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -42,6 +44,33 @@ private fun Long.toLocalDate(): LocalDate =
 private fun LocalDate.toEpochMillisAtStartOfDay(): Long =
     atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
+/** Regroupe les événements par jour pour le mois affiché, en projetant les événements récurrents dans son année. */
+private fun eventsForMonth(events: List<DecryptedEvent>, month: YearMonth): Map<LocalDate, List<DecryptedEvent>> {
+    val result = mutableMapOf<LocalDate, MutableList<DecryptedEvent>>()
+    events.forEach { event ->
+        val date = if (event.recurringYearly) {
+            occurrenceInYear(event.dateMillis, month.year)?.toLocalDate()
+        } else {
+            event.dateMillis.toLocalDate()
+        }
+        if (date != null && YearMonth.from(date) == month) {
+            result.getOrPut(date) { mutableListOf() }.add(event)
+        }
+    }
+    return result
+}
+
+/** Événements d'un jour donné, récurrents (même jour+mois, année quelconque) ou non (date exacte). */
+private fun eventsOnDate(events: List<DecryptedEvent>, date: LocalDate): List<DecryptedEvent> =
+    events.filter { event ->
+        if (event.recurringYearly) {
+            val original = event.dateMillis.toLocalDate()
+            original.month == date.month && original.dayOfMonth == date.dayOfMonth
+        } else {
+            event.dateMillis.toLocalDate() == date
+        }
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(viewModel: CalendarViewModel) {
@@ -51,7 +80,7 @@ fun CalendarScreen(viewModel: CalendarViewModel) {
     var showAddDialog by remember { mutableStateOf(false) }
     var deletingEventId by remember { mutableStateOf<String?>(null) }
 
-    val eventsByDate = remember(events) { events.groupBy { it.dateMillis.toLocalDate() } }
+    val eventsByDate = remember(events, visibleMonth) { eventsForMonth(events, visibleMonth) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.calendar_title)) }) },
@@ -75,7 +104,7 @@ fun CalendarScreen(viewModel: CalendarViewModel) {
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            val dayEvents = eventsByDate[selectedDate].orEmpty().sortedBy { it.dateMillis }
+            val dayEvents = remember(events, selectedDate) { eventsOnDate(events, selectedDate) }
             Text(
                 formatDate(selectedDate.toEpochMillisAtStartOfDay()),
                 style = MaterialTheme.typography.titleMedium,
@@ -107,8 +136,8 @@ fun CalendarScreen(viewModel: CalendarViewModel) {
         AddEventDialog(
             initialDateMillis = selectedDate.toEpochMillisAtStartOfDay(),
             onDismiss = { showAddDialog = false },
-            onConfirm = { category, title, dateMillis ->
-                viewModel.addEvent(category, title, dateMillis)
+            onConfirm = { category, title, dateMillis, recurring ->
+                viewModel.addEvent(category, title, dateMillis, recurring)
                 showAddDialog = false
             }
         )
@@ -262,11 +291,22 @@ private fun EventRow(event: DecryptedEvent, onDelete: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(event.title, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    EventCategory.label(event.category),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        EventCategory.label(event.category),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (event.recurringYearly) {
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            Icons.Default.Repeat,
+                            contentDescription = stringResource(R.string.event_recurring_yearly),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.messages_delete))
@@ -280,10 +320,11 @@ private fun EventRow(event: DecryptedEvent, onDelete: () -> Unit) {
 private fun AddEventDialog(
     initialDateMillis: Long,
     onDismiss: () -> Unit,
-    onConfirm: (category: String, title: String, dateMillis: Long) -> Unit
+    onConfirm: (category: String, title: String, dateMillis: Long, recurring: Boolean) -> Unit
 ) {
     var category by remember { mutableStateOf(EventCategory.ENSEMBLE) }
     var title by remember { mutableStateOf("") }
+    var recurring by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialDateMillis)
 
     AlertDialog(
@@ -292,7 +333,7 @@ private fun AddEventDialog(
             TextButton(
                 onClick = {
                     val selected = datePickerState.selectedDateMillis
-                    if (selected != null && title.isNotBlank()) onConfirm(category, title, selected)
+                    if (selected != null && title.isNotBlank()) onConfirm(category, title, selected, recurring)
                 }
             ) { Text(stringResource(R.string.pairing_confirm)) }
         },
@@ -321,6 +362,10 @@ private fun AddEventDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 DatePicker(state = datePickerState, showModeToggle = false)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = recurring, onCheckedChange = { recurring = it })
+                    Text(stringResource(R.string.event_recurring_yearly), style = MaterialTheme.typography.bodyMedium)
+                }
             }
         }
     )

@@ -40,8 +40,12 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isCoupleMember(coupleId);
         allow create: if isCoupleMember(coupleId) && request.resource.data.senderId == request.auth.uid;
-        // Édition du texte réservée à l'auteur, réactions ouvertes aux 2 membres (client applique cette distinction)
-        allow update: if isCoupleMember(coupleId);
+        // L'auteur peut modifier son propre message (texte, média...). N'importe quel membre
+        // peut réagir, mais uniquement en touchant le champ "reactions", rien d'autre.
+        allow update: if isCoupleMember(coupleId) && (
+          resource.data.senderId == request.auth.uid ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+        );
         allow delete: if isCoupleMember(coupleId) && resource.data.senderId == request.auth.uid;
       }
 

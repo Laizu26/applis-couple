@@ -8,6 +8,7 @@ import com.ensemble.app.data.AppContainer
 import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.DecryptedMemory
 import com.ensemble.app.data.model.Memory
+import com.ensemble.app.util.compressImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,7 +54,7 @@ class JournalViewModel(
             runCatching {
                 withContext(Dispatchers.IO) {
                     val payload = container.cryptoManager.encryptText(text)
-                    val encryptedPhoto = photoBytes?.let { container.cryptoManager.encryptBytes(it) }
+                    val encryptedPhoto = photoBytes?.let { container.cryptoManager.encryptBytes(compressImage(it)) }
                     container.memoryRepository.addMemory(
                         coupleId,
                         Memory(

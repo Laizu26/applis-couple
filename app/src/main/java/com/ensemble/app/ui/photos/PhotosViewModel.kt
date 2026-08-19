@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ensemble.app.data.AppContainer
 import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.CouplePhoto
+import com.ensemble.app.util.compressImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +47,7 @@ class PhotosViewModel(
         viewModelScope.launch {
             for (rawBytes in rawBytesList) {
                 withContext(Dispatchers.IO) {
-                    val (iv, cipherBytes) = container.cryptoManager.encryptBytes(rawBytes)
+                    val (iv, cipherBytes) = container.cryptoManager.encryptBytes(compressImage(rawBytes))
                     val photo = CouplePhoto(
                         id = UUID.randomUUID().toString(),
                         uploaderId = myUid,
@@ -65,5 +66,9 @@ class PhotosViewModel(
             val payload = container.cryptoManager.encryptText(caption)
             container.photoRepository.updateCaption(coupleId, photo.id, payload.ivBase64, payload.cipherTextBase64)
         }
+    }
+
+    fun deletePhoto(photo: CouplePhoto) {
+        viewModelScope.launch { runCatching { container.photoRepository.deletePhoto(coupleId, photo) } }
     }
 }

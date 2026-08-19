@@ -51,4 +51,11 @@ class PhotoRepository(
             )
         ).await()
     }
+
+    suspend fun deletePhoto(coupleId: String, photo: CouplePhoto) {
+        if (photo.storagePath.isNotBlank()) {
+            runCatching { storage.reference.child(photo.storagePath).delete().await() }
+        }
+        photos(coupleId).document(photo.id).delete().await()
+    }
 }

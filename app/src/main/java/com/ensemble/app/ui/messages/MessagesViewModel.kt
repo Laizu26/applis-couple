@@ -11,6 +11,7 @@ import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.ChatMessage
 import com.ensemble.app.data.model.DecryptedMessage
 import com.ensemble.app.data.model.MessageType
+import com.ensemble.app.util.compressImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -43,6 +44,9 @@ class MessagesViewModel(
 
     private val _partnerReadTimestamp = MutableStateFlow(0L)
     val partnerReadTimestamp: StateFlow<Long> = _partnerReadTimestamp
+
+    private val _partnerOnline = MutableStateFlow(false)
+    val partnerOnline: StateFlow<Boolean> = _partnerOnline
 
     val currentUserId: String get() = myUid
 
@@ -84,6 +88,11 @@ class MessagesViewModel(
         viewModelScope.launch {
             runCatching {
                 container.messageRepository.observePartnerRead(coupleId, partner).collect { _partnerReadTimestamp.value = it }
+            }
+        }
+        viewModelScope.launch {
+            runCatching {
+                container.coupleRepository.observeUserProfile(partner).collect { _partnerOnline.value = it?.online == true }
             }
         }
     }
@@ -167,7 +176,7 @@ class MessagesViewModel(
             for (bytes in rawBytesList) {
                 runCatching {
                     withContext(Dispatchers.IO) {
-                        val (iv, cipherBytes) = container.cryptoManager.encryptBytes(bytes)
+                        val (iv, cipherBytes) = container.cryptoManager.encryptBytes(compressImage(bytes))
                         val messageId = UUID.randomUUID().toString()
                         val storagePath = "couples/$coupleId/chat/$messageId.enc"
                         container.photoRepository.uploadEncryptedBytes(storagePath, cipherBytes)

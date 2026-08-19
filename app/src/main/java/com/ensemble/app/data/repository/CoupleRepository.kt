@@ -52,4 +52,18 @@ class CoupleRepository(private val db: FirebaseFirestore) {
     suspend fun updateTimeZone(uid: String, zoneId: String) {
         users().document(uid).set(mapOf("timeZoneId" to zoneId), com.google.firebase.firestore.SetOptions.merge()).await()
     }
+
+    suspend fun updatePresence(uid: String, online: Boolean) {
+        users().document(uid).set(
+            mapOf("online" to online, "lastActiveAt" to System.currentTimeMillis()),
+            com.google.firebase.firestore.SetOptions.merge()
+        ).await()
+    }
+
+    fun observeUserProfile(uid: String): Flow<UserProfile?> = callbackFlow {
+        val registration = users().document(uid).addSnapshotListener { snapshot, _ ->
+            trySend(snapshot?.toObject(UserProfile::class.java))
+        }
+        awaitClose { registration.remove() }
+    }
 }
