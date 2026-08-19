@@ -7,13 +7,16 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -46,7 +49,7 @@ fun PhotosScreen(viewModel: PhotosViewModel) {
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val uploadCount by viewModel.uploadCount.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var fullScreenPhoto by remember { mutableStateOf<CouplePhoto?>(null) }
+    var fullScreenIndex by remember { mutableStateOf<Int?>(null) }
 
     val pickMedia = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 20)
@@ -86,8 +89,8 @@ fun PhotosScreen(viewModel: PhotosViewModel) {
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(photos, key = { it.id }) { photo ->
-                    PhotoThumbnail(photo, viewModel) { fullScreenPhoto = photo }
+                itemsIndexed(photos, key = { _, item -> item.id }) { index, photo ->
+                    PhotoThumbnail(photo, viewModel) { fullScreenIndex = index }
                 }
             }
         }
@@ -109,8 +112,8 @@ fun PhotosScreen(viewModel: PhotosViewModel) {
         }
     }
 
-    fullScreenPhoto?.let { photo ->
-        FullScreenPhotoDialog(photo, viewModel, onDismiss = { fullScreenPhoto = null })
+    fullScreenIndex?.let { index ->
+        FullScreenPhotoPagerDialog(photos, index, viewModel, onDismiss = { fullScreenIndex = null })
     }
 }
 
@@ -141,13 +144,28 @@ private fun PhotoThumbnail(photo: CouplePhoto, viewModel: PhotosViewModel, onCli
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FullScreenPhotoDialog(photo: CouplePhoto, viewModel: PhotosViewModel, onDismiss: () -> Unit) {
+private fun FullScreenPhotoPagerDialog(
+    photos: List<CouplePhoto>,
+    initialIndex: Int,
+    viewModel: PhotosViewModel,
+    onDismiss: () -> Unit
+) {
+    if (photos.isEmpty()) {
+        onDismiss()
+        return
+    }
+    val pagerState = rememberPagerState(
+        initialPage = initialIndex.coerceIn(0, photos.lastIndex)
+    ) { photos.size }
+    val context = LocalContext.current
+    val photo = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
+
     var bitmap by remember(photo.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var isEditingCaption by remember(photo.id) { mutableStateOf(false) }
     var captionDraft by remember(photo.id) { mutableStateOf(viewModel.decryptCaption(photo).orEmpty()) }
     var showDeleteConfirm by remember(photo.id) { mutableStateOf(false) }
-    val context = LocalContext.current
 
     LaunchedEffect(photo.id) { bitmap = viewModel.loadBitmap(photo) }
 
@@ -174,18 +192,25 @@ private fun FullScreenPhotoDialog(photo: CouplePhoto, viewModel: PhotosViewModel
                 .fillMaxSize()
                 .background(Color.Black)
         ) {
-            val current = bitmap
-            if (current != null) {
-                Image(
-                    bitmap = current,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(onClick = onDismiss)
-                )
-            } else {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                val pagePhoto = photos[page]
+                var pageBitmap by remember(pagePhoto.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+                LaunchedEffect(pagePhoto.id) { pageBitmap = viewModel.loadBitmap(pagePhoto) }
+                val current = pageBitmap
+                if (current != null) {
+                    Image(
+                        bitmap = current,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(onClick = onDismiss)
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
             }
 
             Row(
