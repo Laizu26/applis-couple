@@ -3,7 +3,19 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#E53935"
-        android:pathData="M54,86 C54,86 18,62 18,34.5 C18,19.5 29,10 41,10 C48,10 53,14 54,20 C55,14 60,10 67,10 C79,10 90,19.5 90,34.5 C90,62 54,86 54,86 Z" />
+
+    <!-- Cœur "Retrouvailles" : deux teintes qui se rejoignent au centre. -->
+    <group>
+        <clip-path android:pathData="M0,0 L54,0 L54,108 L0,108 Z" />
+        <path
+            android:fillColor="#E0A458"
+            android:pathData="M54,74 C54,74 74,60.7 74,44.7 C74,35.3 66.7,34 60,34 C56.7,34 54,36.7 54,40.7 C54,36.7 51.3,34 48,34 C41.3,34 34,35.3 34,44.7 C34,60.7 54,74 54,74 Z" />
+    </group>
+
+    <group>
+        <clip-path android:pathData="M54,0 L108,0 L108,108 L54,108 Z" />
+        <path
+            android:fillColor="#B43A57"
+            android:pathData="M54,74 C54,74 74,60.7 74,44.7 C74,35.3 66.7,34 60,34 C56.7,34 54,36.7 54,40.7 C54,36.7 51.3,34 48,34 C41.3,34 34,35.3 34,44.7 C34,60.7 54,74 54,74 Z" />
+    </group>
 </vector>
