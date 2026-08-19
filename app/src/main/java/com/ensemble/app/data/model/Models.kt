@@ -91,6 +91,7 @@ data class ChatMessage(
     val audioDurationMs: Long? = null,
     val reactions: Map<String, String> = emptyMap(),
     val editedAt: Long? = null,
+    val replyToId: String? = null,
     val timestamp: Long = 0L
 )
 
@@ -107,6 +108,7 @@ data class DecryptedMessage(
     val audioDurationMs: Long?,
     val reactions: Map<String, String>,
     val editedAt: Long?,
+    val replyToId: String?,
     val timestamp: Long
 )
 

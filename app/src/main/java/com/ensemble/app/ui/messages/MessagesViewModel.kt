@@ -3,6 +3,7 @@ package com.ensemble.app.ui.messages
 import android.media.MediaPlayer
 import android.util.Base64
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ensemble.app.data.AppContainer
@@ -29,7 +30,8 @@ private const val TYPING_IDLE_DELAY_MS = 3000L
 
 data class MessagesUiState(
     val messages: List<DecryptedMessage> = emptyList(),
-    val draft: String = "",
+    val draft: TextFieldValue = TextFieldValue(""),
+    val replyingTo: DecryptedMessage? = null,
     val errorMessage: String? = null
 )
 
@@ -136,13 +138,21 @@ class MessagesViewModel(
             audioDurationMs = msg.audioDurationMs,
             reactions = msg.reactions,
             editedAt = msg.editedAt,
+            replyToId = msg.replyToId,
             timestamp = msg.timestamp
         )
     }.getOrNull()
 
-    fun onDraftChange(value: String) {
+    /** Le message original d'une réponse, retrouvé dans la liste déjà chargée (pas de requête réseau). */
+    fun findMessage(id: String?): DecryptedMessage? = id?.let { target -> _uiState.value.messages.find { it.id == target } }
+
+    fun onDraftChange(value: TextFieldValue) {
         _uiState.update { it.copy(draft = value) }
-        handleTyping(value.isNotEmpty())
+        handleTyping(value.text.isNotEmpty())
+    }
+
+    fun setReplyingTo(message: DecryptedMessage?) {
+        _uiState.update { it.copy(replyingTo = message) }
     }
 
     private fun handleTyping(isTyping: Boolean) {
@@ -164,9 +174,10 @@ class MessagesViewModel(
     }
 
     fun sendMessage() {
-        val text = _uiState.value.draft.trim()
+        val text = _uiState.value.draft.text.trim()
         if (text.isEmpty()) return
-        _uiState.update { it.copy(draft = "") }
+        val replyToId = _uiState.value.replyingTo?.id
+        _uiState.update { it.copy(draft = TextFieldValue(""), replyingTo = null) }
         handleTyping(false)
         viewModelScope.launch {
             runCatching {
@@ -178,6 +189,7 @@ class MessagesViewModel(
                         type = MessageType.TEXT,
                         ivBase64 = payload.ivBase64,
                         cipherTextBase64 = payload.cipherTextBase64,
+                        replyToId = replyToId,
                         timestamp = System.currentTimeMillis()
                     )
                 )
@@ -186,30 +198,37 @@ class MessagesViewModel(
     }
 
     private fun restoreDraftAfterFailure(text: String) {
-        _uiState.update { it.copy(draft = text, errorMessage = "Message non envoyé, réessaie") }
+        _uiState.update { it.copy(draft = TextFieldValue(text), errorMessage = "Message non envoyé, réessaie") }
     }
 
     fun dismissError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    fun sendPhotos(rawBytesList: List<ByteArray>) {
+    /** [items] = octets bruts + légende optionnelle pour chaque photo. */
+    fun sendPhotos(items: List<Pair<ByteArray, String>>) {
+        val replyToId = _uiState.value.replyingTo?.id
+        _uiState.update { it.copy(replyingTo = null) }
         viewModelScope.launch {
-            for (bytes in rawBytesList) {
+            items.forEachIndexed { index, (bytes, caption) ->
                 runCatching {
                     withContext(Dispatchers.IO) {
                         val (iv, cipherBytes) = container.cryptoManager.encryptBytes(compressImage(bytes))
                         val messageId = UUID.randomUUID().toString()
                         val storagePath = "couples/$coupleId/chat/$messageId.enc"
                         container.photoRepository.uploadEncryptedBytes(storagePath, cipherBytes)
+                        val captionPayload = if (caption.isNotBlank()) container.cryptoManager.encryptText(caption) else null
                         container.messageRepository.sendMessage(
                             coupleId,
                             ChatMessage(
                                 id = messageId,
                                 senderId = myUid,
                                 type = MessageType.PHOTO,
+                                ivBase64 = captionPayload?.ivBase64.orEmpty(),
+                                cipherTextBase64 = captionPayload?.cipherTextBase64.orEmpty(),
                                 photoStoragePath = storagePath,
                                 photoIvBase64 = Base64.encodeToString(iv, Base64.NO_WRAP),
+                                replyToId = if (index == 0) replyToId else null,
                                 timestamp = System.currentTimeMillis()
                             )
                         )
@@ -226,6 +245,8 @@ class MessagesViewModel(
     }
 
     fun sendVoiceNote(bytes: ByteArray, durationMs: Long) {
+        val replyToId = _uiState.value.replyingTo?.id
+        _uiState.update { it.copy(replyingTo = null) }
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -242,6 +263,7 @@ class MessagesViewModel(
                             audioStoragePath = storagePath,
                             audioIvBase64 = Base64.encodeToString(iv, Base64.NO_WRAP),
                             audioDurationMs = durationMs,
+                            replyToId = replyToId,
                             timestamp = System.currentTimeMillis()
                         )
                     )

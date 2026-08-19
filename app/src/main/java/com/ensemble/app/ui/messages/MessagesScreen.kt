@@ -2,6 +2,7 @@ package com.ensemble.app.ui.messages
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -15,9 +16,12 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
@@ -25,6 +29,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,9 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -46,13 +54,20 @@ import com.ensemble.app.data.audio.VoiceRecorder
 import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.DecryptedMessage
 import com.ensemble.app.data.model.MessageType
+import com.ensemble.app.ui.components.FormDialog
 import com.ensemble.app.ui.components.PhotoSourceMenu
+import com.ensemble.app.ui.components.RichTextToolbar
 import com.ensemble.app.util.formatDuration
 import com.ensemble.app.util.formatMessageTime
+import com.ensemble.app.util.parseMarkup
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val QUICK_REACTIONS = listOf("❤️", "😂", "😮", "😢", "👍")
+
+private class PendingPhoto(val bytes: ByteArray) {
+    var caption by mutableStateOf("")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +86,9 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
     var editingMessage by remember { mutableStateOf<DecryptedMessage?>(null) }
     var deletingMessageId by remember { mutableStateOf<String?>(null) }
     var fullScreenPhoto by remember { mutableStateOf<DecryptedMessage?>(null) }
+    var isSearching by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var pendingPhotos by remember { mutableStateOf<List<PendingPhoto>>(emptyList()) }
 
     val voiceRecorder = remember { VoiceRecorder(context) }
     var isRecording by remember { mutableStateOf(false) }
@@ -91,6 +109,11 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
     val lastMessageIsSeen = uiState.messages.lastOrNull { it.senderId == viewModel.currentUserId }
         ?.let { it.timestamp <= partnerReadTimestamp && partnerReadTimestamp > 0 } == true
 
+    val visibleMessages = remember(uiState.messages, searchQuery) {
+        if (searchQuery.isBlank()) uiState.messages
+        else uiState.messages.filter { it.text.contains(searchQuery, ignoreCase = true) }
+    }
+
     val pickMedia = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
     ) { uris ->
@@ -98,7 +121,7 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
             val bytesList = uris.mapNotNull { uri ->
                 context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             }
-            if (bytesList.isNotEmpty()) viewModel.sendPhotos(bytesList)
+            if (bytesList.isNotEmpty()) pendingPhotos = bytesList.map { PendingPhoto(it) }
         }
     }
 
@@ -120,12 +143,33 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(partnerLabel ?: stringResource(R.string.messages_title))
-                        Text(
-                            stringResource(if (partnerOnline) R.string.messages_partner_online else R.string.messages_partner_offline),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = if (partnerOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    if (isSearching) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text(stringResource(R.string.messages_search_hint)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Column {
+                            Text(partnerLabel ?: stringResource(R.string.messages_title))
+                            Text(
+                                stringResource(if (partnerOnline) R.string.messages_partner_online else R.string.messages_partner_offline),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (partnerOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        if (isSearching) searchQuery = ""
+                        isSearching = !isSearching
+                    }) {
+                        Icon(
+                            if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = stringResource(R.string.messages_search_hint)
                         )
                     }
                 }
@@ -140,13 +184,19 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            items(uiState.messages, key = { it.id }) { message ->
+            items(visibleMessages, key = { it.id }) { message ->
                 val isMine = message.senderId == viewModel.currentUserId
+                val quoted = viewModel.findMessage(message.replyToId)
                 MessageBubble(
                     message = message,
                     isMine = isMine,
                     showSeen = isMine && message.id == myLastMessageId && lastMessageIsSeen,
                     isPlaying = playingMessageId == message.id,
+                    quoted = quoted,
+                    quotedSenderLabel = quoted?.let {
+                        if (it.senderId == viewModel.currentUserId) stringResource(R.string.messages_reply_you)
+                        else partnerLabel ?: stringResource(R.string.messages_title)
+                    },
                     loadBitmap = { viewModel.loadPhotoBitmap(message) },
                     onLongPress = { actionsForMessage = message },
                     onPhotoClick = { fullScreenPhoto = message },
@@ -156,6 +206,15 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
             if (partnerTyping) {
                 item(key = "typing") { TypingIndicatorBubble() }
             }
+        }
+
+        uiState.replyingTo?.let { replyMsg ->
+            ReplyPreviewBar(
+                message = replyMsg,
+                senderLabel = if (replyMsg.senderId == viewModel.currentUserId) stringResource(R.string.messages_reply_you)
+                    else partnerLabel ?: stringResource(R.string.messages_title),
+                onCancel = { viewModel.setReplyingTo(null) }
+            )
         }
 
         if (isRecording) {
@@ -187,46 +246,47 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
                 }
             }
         } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                PhotoSourceMenu(
-                    onGalleryClick = {
-                        pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    },
-                    onCameraCaptured = { bytes -> viewModel.sendPhotos(listOf(bytes)) }
-                ) { openMenu ->
-                    IconButton(onClick = openMenu) {
-                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.photos_add))
-                    }
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                if (uiState.draft.text.isNotEmpty()) {
+                    RichTextToolbar(value = uiState.draft, onValueChange = viewModel::onDraftChange)
+                    Spacer(Modifier.height(4.dp))
                 }
-                OutlinedTextField(
-                    value = uiState.draft,
-                    onValueChange = viewModel::onDraftChange,
-                    placeholder = { Text(stringResource(R.string.messages_hint)) },
-                    shape = MaterialTheme.shapes.extraLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(4.dp))
-                if (uiState.draft.isBlank()) {
-                    IconButton(onClick = {
-                        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                            PackageManager.PERMISSION_GRANTED
-                        if (granted) {
-                            voiceRecorder.start()
-                            isRecording = true
-                        } else {
-                            recordAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PhotoSourceMenu(
+                        onGalleryClick = {
+                            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        onCameraCaptured = { bytes -> pendingPhotos = listOf(PendingPhoto(bytes)) }
+                    ) { openMenu ->
+                        IconButton(onClick = openMenu) {
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.photos_add))
                         }
-                    }) {
-                        Icon(Icons.Default.Mic, contentDescription = "Note vocale", tint = MaterialTheme.colorScheme.primary)
                     }
-                } else {
-                    IconButton(onClick = viewModel::sendMessage) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Envoyer", tint = MaterialTheme.colorScheme.primary)
+                    OutlinedTextField(
+                        value = uiState.draft,
+                        onValueChange = viewModel::onDraftChange,
+                        placeholder = { Text(stringResource(R.string.messages_hint)) },
+                        shape = MaterialTheme.shapes.extraLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    if (uiState.draft.text.isBlank()) {
+                        IconButton(onClick = {
+                            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                                PackageManager.PERMISSION_GRANTED
+                            if (granted) {
+                                voiceRecorder.start()
+                                isRecording = true
+                            } else {
+                                recordAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        }) {
+                            Icon(Icons.Default.Mic, contentDescription = "Note vocale", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    } else {
+                        IconButton(onClick = viewModel::sendMessage) {
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Envoyer", tint = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 }
             }
@@ -241,6 +301,10 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
             onDismiss = { actionsForMessage = null },
             onReact = { emoji ->
                 viewModel.toggleReaction(message, emoji)
+                actionsForMessage = null
+            },
+            onReply = {
+                viewModel.setReplyingTo(message)
                 actionsForMessage = null
             },
             onEdit = {
@@ -284,6 +348,132 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
     fullScreenPhoto?.let { message ->
         FullScreenChatPhotoDialog(message, viewModel, onDismiss = { fullScreenPhoto = null })
     }
+
+    if (pendingPhotos.isNotEmpty()) {
+        ComposePhotosDialog(
+            photos = pendingPhotos,
+            onRemove = { photo -> pendingPhotos = pendingPhotos.filter { it !== photo } },
+            onDismiss = { pendingPhotos = emptyList() },
+            onSend = {
+                viewModel.sendPhotos(pendingPhotos.map { it.bytes to it.caption })
+                pendingPhotos = emptyList()
+            }
+        )
+    }
+}
+
+@Composable
+private fun ReplyPreviewBar(message: DecryptedMessage, senderLabel: String, onCancel: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.Reply,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.messages_replying_to, senderLabel),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                replyPreviewText(message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+        IconButton(onClick = onCancel, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.messages_cancel), modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun replyPreviewText(message: DecryptedMessage): String = when (message.type) {
+    MessageType.PHOTO -> "📷 " + (message.text.ifBlank { stringResource(R.string.messages_reply_photo) })
+    MessageType.AUDIO -> "🎤 " + stringResource(R.string.messages_reply_audio)
+    else -> message.text
+}
+
+@Composable
+private fun ComposePhotosDialog(
+    photos: List<PendingPhoto>,
+    onRemove: (PendingPhoto) -> Unit,
+    onDismiss: () -> Unit,
+    onSend: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = 640.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    stringResource(R.string.messages_send_photos_title, photos.size),
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
+                ) {
+                    photos.forEach { photo ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        ) {
+                            val bitmap = remember(photo) {
+                                BitmapFactory.decodeByteArray(photo.bytes, 0, photo.bytes.size)?.asImageBitmap()
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            OutlinedTextField(
+                                value = photo.caption,
+                                onValueChange = { photo.caption = it },
+                                placeholder = { Text(stringResource(R.string.photos_caption_hint)) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { onRemove(photo) }) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.messages_delete))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.messages_cancel)) }
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = onSend, enabled = photos.isNotEmpty()) {
+                        Text(stringResource(R.string.messages_send))
+                    }
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -293,6 +483,8 @@ private fun MessageBubble(
     isMine: Boolean,
     showSeen: Boolean,
     isPlaying: Boolean,
+    quoted: DecryptedMessage?,
+    quotedSenderLabel: String?,
     loadBitmap: suspend () -> androidx.compose.ui.graphics.ImageBitmap?,
     onLongPress: () -> Unit,
     onPhotoClick: () -> Unit,
@@ -315,6 +507,39 @@ private fun MessageBubble(
                     .padding(if (message.type == MessageType.PHOTO) 6.dp else 14.dp)
                     .widthIn(max = 260.dp)
             ) {
+                if (quoted != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(onBubbleColor.copy(alpha = 0.12f), MaterialTheme.shapes.small)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .fillMaxHeight()
+                                .background(onBubbleColor.copy(alpha = 0.6f))
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Column {
+                            if (quotedSenderLabel != null) {
+                                Text(
+                                    quotedSenderLabel,
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                                    color = onBubbleColor
+                                )
+                            }
+                            Text(
+                                replyPreviewText(quoted),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = onBubbleColor.copy(alpha = 0.85f),
+                                maxLines = 2
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+
                 if (message.type == MessageType.PHOTO) {
                     var bitmap by remember(message.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
                     LaunchedEffect(message.id) { bitmap = loadBitmap() }
@@ -340,7 +565,7 @@ private fun MessageBubble(
                     if (message.text.isNotBlank()) {
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            message.text,
+                            parseMarkup(message.text),
                             color = onBubbleColor,
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
@@ -362,7 +587,7 @@ private fun MessageBubble(
                     }
                 } else {
                     Text(
-                        text = message.text,
+                        text = parseMarkup(message.text),
                         color = onBubbleColor
                     )
                 }
@@ -427,6 +652,7 @@ private fun MessageActionsDialog(
     isMine: Boolean,
     onDismiss: () -> Unit,
     onReact: (String) -> Unit,
+    onReply: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -445,8 +671,13 @@ private fun MessageActionsDialog(
                         )
                     }
                 }
+                Spacer(Modifier.height(16.dp))
+                TextButton(onClick = onReply, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.messages_reply))
+                }
                 if (isMine) {
-                    Spacer(Modifier.height(16.dp))
                     if (message.type == MessageType.TEXT) {
                         TextButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.messages_edit))
@@ -463,17 +694,16 @@ private fun MessageActionsDialog(
 
 @Composable
 private fun EditMessageDialog(initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var text by remember { mutableStateOf(initialText) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.messages_save)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.messages_cancel)) } },
-        text = {
-            OutlinedTextField(value = text, onValueChange = { text = it }, modifier = Modifier.fillMaxWidth())
-        }
-    )
+    var textField by remember { mutableStateOf(TextFieldValue(initialText)) }
+    FormDialog(
+        onDismiss = onDismiss,
+        confirmLabel = stringResource(R.string.messages_save),
+        onConfirm = { onConfirm(textField.text) }
+    ) {
+        RichTextToolbar(value = textField, onValueChange = { textField = it })
+        Spacer(Modifier.height(4.dp))
+        OutlinedTextField(value = textField, onValueChange = { textField = it }, modifier = Modifier.fillMaxWidth())
+    }
 }
 
 @Composable

@@ -53,6 +53,14 @@
     <string name="messages_delete_confirm">Supprimer ce message ?</string>
     <string name="messages_cancel">Annuler</string>
     <string name="messages_save">Enregistrer</string>
+    <string name="messages_send">Envoyer</string>
+    <string name="messages_search_hint">Rechercher dans la conversation</string>
+    <string name="messages_reply">Répondre</string>
+    <string name="messages_reply_you">toi</string>
+    <string name="messages_replying_to">Réponse à %1$s</string>
+    <string name="messages_reply_photo">Photo</string>
+    <string name="messages_reply_audio">Note vocale</string>
+    <string name="messages_send_photos_title">Envoyer %1$d photo(s)</string>
 
     <string name="photos_title">Photos</string>
     <string name="photos_add">Ajouter des photos</string>
