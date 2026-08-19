@@ -13,7 +13,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
-private const val CHANNEL_ID = "ensemble_messages"
+const val CHANNEL_ID = "ensemble_messages"
 
 /**
  * Reçoit les notifications push envoyées par la Cloud Function lors d'un nouveau message.

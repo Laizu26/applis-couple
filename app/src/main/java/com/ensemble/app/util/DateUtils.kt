@@ -43,3 +43,18 @@ fun formatDuration(durationMs: Long): String {
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
 }
+
+/**
+ * Le DatePicker Material3 raisonne en "millis UTC du début du jour" (voir la doc de
+ * DatePickerState.selectedDateMillis), alors que le reste de l'app stocke/décode les dates via
+ * le fuseau local de l'appareil (formatDate, la grille du calendrier...). Sans ce pont, un jour
+ * choisi dans le picker peut être enregistré un jour avant/après selon le fuseau de
+ * l'utilisateur — ces deux fonctions évitent le décalage quel que soit son fuseau.
+ */
+fun localDateToPickerMillis(date: java.time.LocalDate): Long =
+    date.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+
+fun pickerMillisToLocalDayMillis(pickerMillis: Long): Long {
+    val date = java.time.Instant.ofEpochMilli(pickerMillis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+    return date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+}

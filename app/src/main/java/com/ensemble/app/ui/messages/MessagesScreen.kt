@@ -47,8 +47,6 @@ import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.DecryptedMessage
 import com.ensemble.app.data.model.MessageType
 import com.ensemble.app.ui.components.PhotoSourceMenu
-import com.ensemble.app.ui.theme.BubbleMine
-import com.ensemble.app.ui.theme.BubbleTheirs
 import com.ensemble.app.util.formatDuration
 import com.ensemble.app.util.formatMessageTime
 import kotlinx.coroutines.delay
@@ -305,10 +303,12 @@ private fun MessageBubble(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start
         ) {
+            val bubbleColor = if (isMine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
+            val onBubbleColor = if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
             Column(
                 modifier = Modifier
                     .background(
-                        color = if (isMine) BubbleMine else BubbleTheirs,
+                        color = bubbleColor,
                         shape = MaterialTheme.shapes.large
                     )
                     .combinedClickable(onClick = {}, onLongClick = onLongPress)
@@ -341,7 +341,7 @@ private fun MessageBubble(
                         Spacer(Modifier.height(6.dp))
                         Text(
                             message.text,
-                            color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface,
+                            color = onBubbleColor,
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
                     }
@@ -351,26 +351,26 @@ private fun MessageBubble(
                             Icon(
                                 if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 contentDescription = null,
-                                tint = if (isMine) Color.White else MaterialTheme.colorScheme.primary
+                                tint = onBubbleColor
                             )
                         }
                         Spacer(Modifier.width(6.dp))
                         Text(
                             formatDuration(message.audioDurationMs ?: 0L),
-                            color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface
+                            color = onBubbleColor
                         )
                     }
                 } else {
                     Text(
                         text = message.text,
-                        color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface
+                        color = onBubbleColor
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                     Text(
                         text = formatMessageTime(message.timestamp) + if (message.editedAt != null) " " + stringResource(R.string.messages_edited) else "",
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 10.sp),
-                        color = if (isMine) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = onBubbleColor.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -413,10 +413,10 @@ private fun TypingIndicatorBubble() {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Box(
             modifier = Modifier
-                .background(BubbleTheirs, MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.large)
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            Text(stringResource(R.string.messages_typing), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.messages_typing), color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }

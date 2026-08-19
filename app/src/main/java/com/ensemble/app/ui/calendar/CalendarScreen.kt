@@ -28,8 +28,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
 import com.ensemble.app.data.model.DecryptedEvent
 import com.ensemble.app.data.model.EventCategory
+import com.ensemble.app.ui.components.FormDialog
 import com.ensemble.app.util.formatDate
+import com.ensemble.app.util.localDateToPickerMillis
 import com.ensemble.app.util.occurrenceInYear
+import com.ensemble.app.util.pickerMillisToLocalDayMillis
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -144,7 +147,7 @@ fun CalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit = {}) {
 
     if (showAddDialog) {
         AddEventDialog(
-            initialDateMillis = selectedDate.toEpochMillisAtStartOfDay(),
+            initialDateMillis = localDateToPickerMillis(selectedDate),
             onDismiss = { showAddDialog = false },
             onConfirm = { category, title, dateMillis, recurring ->
                 viewModel.addEvent(category, title, dateMillis, recurring)
@@ -337,46 +340,39 @@ private fun AddEventDialog(
     var recurring by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialDateMillis)
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val selected = datePickerState.selectedDateMillis
-                    if (selected != null && title.isNotBlank()) onConfirm(category, title, selected, recurring)
-                }
-            ) { Text(stringResource(R.string.pairing_confirm)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.messages_cancel)) } },
-        text = {
-            Column {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                ) {
-                    EventCategory.all.forEach { cat ->
-                        FilterChip(
-                            selected = category == cat,
-                            onClick = { category = cat },
-                            label = { Text(EventCategory.emoji(cat) + " " + EventCategory.label(cat)) }
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(R.string.calendar_event_title_hint)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+    FormDialog(
+        onDismiss = onDismiss,
+        confirmLabel = stringResource(R.string.pairing_confirm),
+        onConfirm = {
+            val selected = datePickerState.selectedDateMillis
+            if (selected != null && title.isNotBlank()) onConfirm(category, title, pickerMillisToLocalDayMillis(selected), recurring)
+        }
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+        ) {
+            EventCategory.all.forEach { cat ->
+                FilterChip(
+                    selected = category == cat,
+                    onClick = { category = cat },
+                    label = { Text(EventCategory.emoji(cat) + " " + EventCategory.label(cat)) }
                 )
-                Spacer(Modifier.height(8.dp))
-                DatePicker(state = datePickerState, showModeToggle = false)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = recurring, onCheckedChange = { recurring = it })
-                    Text(stringResource(R.string.event_recurring_yearly), style = MaterialTheme.typography.bodyMedium)
-                }
             }
         }
-    )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = { Text(stringResource(R.string.calendar_event_title_hint)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        DatePicker(state = datePickerState, showModeToggle = false)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = recurring, onCheckedChange = { recurring = it })
+            Text(stringResource(R.string.event_recurring_yearly), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
 }

@@ -23,6 +23,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.ensemble.app.R
+import com.ensemble.app.data.model.EventCategory
 import com.ensemble.app.util.countdownTo
 import com.ensemble.app.util.formatDate
 
@@ -73,9 +74,14 @@ private fun WidgetContent(snapshot: WidgetPrefs.Snapshot) {
             )
         } else {
             val countdown = countdownTo(dateMillis)
+            val defaultLabel = when {
+                countdown.isPast -> "Ensemble depuis"
+                snapshot.category == EventCategory.DEPART -> "avant de se quitter"
+                else -> "Retrouvailles"
+            }
             Text(
-                snapshot.label?.takeIf { it.isNotBlank() }
-                    ?: if (countdown.isPast) "Ensemble depuis" else "Retrouvailles",
+                EventCategory.emoji(snapshot.category) + " " +
+                    (snapshot.label?.takeIf { it.isNotBlank() } ?: defaultLabel),
                 style = TextStyle(color = ColorProvider(WidgetPrimary), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             )
             Text(

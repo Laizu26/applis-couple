@@ -164,7 +164,8 @@ class HomeViewModel(
                     featured?.title,
                     featuredEffectiveDate,
                     isPast = featuredEffectiveDate != null && featuredEffectiveDate < now,
-                    appLockEnabled = container.cryptoManager.isAppLockEnabled
+                    appLockEnabled = container.cryptoManager.isAppLockEnabled,
+                    category = featured?.category ?: EventCategory.ENSEMBLE
                 )
                 runCatching { CountdownWidget().updateAll(container.appContext) }
             }

@@ -1,6 +1,7 @@
 package com.ensemble.app.widget
 
 import android.content.Context
+import com.ensemble.app.data.model.EventCategory
 
 /**
  * Petit cache local (déjà déchiffré) permettant au widget d'écran d'accueil d'afficher le
@@ -15,8 +16,16 @@ object WidgetPrefs {
     private const val KEY_DATE = "date"
     private const val KEY_IS_PAST = "is_past"
     private const val KEY_LOCKED = "locked"
+    private const val KEY_CATEGORY = "category"
 
-    fun save(context: Context, label: String?, dateMillis: Long?, isPast: Boolean, appLockEnabled: Boolean) {
+    fun save(
+        context: Context,
+        label: String?,
+        dateMillis: Long?,
+        isPast: Boolean,
+        appLockEnabled: Boolean,
+        category: String = EventCategory.ENSEMBLE
+    ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().apply {
             putBoolean(KEY_LOCKED, appLockEnabled)
@@ -28,11 +37,18 @@ object WidgetPrefs {
                 if (dateMillis != null) putLong(KEY_DATE, dateMillis) else remove(KEY_DATE)
             }
             putBoolean(KEY_IS_PAST, isPast)
+            putString(KEY_CATEGORY, category)
             apply()
         }
     }
 
-    data class Snapshot(val label: String?, val dateMillis: Long?, val isPast: Boolean, val locked: Boolean)
+    data class Snapshot(
+        val label: String?,
+        val dateMillis: Long?,
+        val isPast: Boolean,
+        val locked: Boolean,
+        val category: String
+    )
 
     fun read(context: Context): Snapshot {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -40,6 +56,7 @@ object WidgetPrefs {
         val label = prefs.getString(KEY_LABEL, null)
         val date = if (prefs.contains(KEY_DATE)) prefs.getLong(KEY_DATE, 0L) else null
         val isPast = prefs.getBoolean(KEY_IS_PAST, false)
-        return Snapshot(label, date, isPast, locked)
+        val category = prefs.getString(KEY_CATEGORY, EventCategory.ENSEMBLE) ?: EventCategory.ENSEMBLE
+        return Snapshot(label, date, isPast, locked, category)
     }
 }

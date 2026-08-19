@@ -11,10 +11,6 @@ import androidx.fragment.app.FragmentActivity
 import com.ensemble.app.data.lock.BiometricAuthenticator
 import com.ensemble.app.navigation.EnsembleRoot
 import com.ensemble.app.ui.theme.EnsembleTheme
-import com.google.firebase.Firebase
-import com.google.firebase.messaging.messaging
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
 
@@ -24,7 +20,6 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
-        registerFcmTokenListener()
 
         val biometricAuthenticator = BiometricAuthenticator(this)
 
@@ -41,16 +36,6 @@ class MainActivity : FragmentActivity() {
             val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
             if (!granted) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
-
-    private fun registerFcmTokenListener() {
-        val container = (application as EnsembleApplication).container
-        Firebase.messaging.token.addOnSuccessListener { token ->
-            val uid = container.authRepository.currentUser?.uid ?: return@addOnSuccessListener
-            MainScope().launch {
-                runCatching { container.coupleRepository.updateFcmToken(uid, token) }
-            }
         }
     }
 }

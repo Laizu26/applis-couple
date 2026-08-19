@@ -43,6 +43,7 @@ import com.ensemble.app.R
 import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.CouplePhoto
 import com.ensemble.app.data.model.EventCategory
+import com.ensemble.app.ui.components.FormDialog
 import com.ensemble.app.ui.components.PhotoSourceMenu
 import com.ensemble.app.ui.theme.RoseContainer
 import com.ensemble.app.ui.theme.RosePrimary
@@ -50,6 +51,8 @@ import com.ensemble.app.util.countdownTo
 import com.ensemble.app.util.currentTimeInZone
 import com.ensemble.app.util.formatDate
 import com.ensemble.app.util.hourOffsetFromLocal
+import com.ensemble.app.util.localDateToPickerMillis
+import com.ensemble.app.util.pickerMillisToLocalDayMillis
 import kotlinx.coroutines.delay
 
 private val HOME_CATEGORIES = listOf(EventCategory.ENSEMBLE, EventCategory.DEPART)
@@ -520,45 +523,44 @@ private fun EditMeetingDialog(
     var category by remember { mutableStateOf(initialCategory) }
     var label by remember { mutableStateOf(initialLabel) }
     var recurring by remember { mutableStateOf(initialRecurring) }
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialDateMillis)
+    val pickerSeedMillis = remember(initialDateMillis) {
+        initialDateMillis?.let {
+            val date = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            localDateToPickerMillis(date)
+        }
+    }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = pickerSeedMillis)
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val selected = datePickerState.selectedDateMillis
-                    if (selected != null) onConfirm(category, label, selected, recurring)
-                }
-            ) { Text(stringResource(R.string.pairing_confirm)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.messages_cancel)) } },
-        text = {
-            Column {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HOME_CATEGORIES.forEach { cat ->
-                        FilterChip(
-                            selected = category == cat,
-                            onClick = { category = cat },
-                            label = { Text(EventCategory.emoji(cat) + " " + EventCategory.label(cat)) }
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it },
-                    label = { Text("Titre (optionnel)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+    FormDialog(
+        onDismiss = onDismiss,
+        confirmLabel = stringResource(R.string.pairing_confirm),
+        onConfirm = {
+            val selected = datePickerState.selectedDateMillis
+            if (selected != null) onConfirm(category, label, pickerMillisToLocalDayMillis(selected), recurring)
+        }
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HOME_CATEGORIES.forEach { cat ->
+                FilterChip(
+                    selected = category == cat,
+                    onClick = { category = cat },
+                    label = { Text(EventCategory.emoji(cat) + " " + EventCategory.label(cat)) }
                 )
-                Spacer(Modifier.height(8.dp))
-                DatePicker(state = datePickerState, showModeToggle = false)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = recurring, onCheckedChange = { recurring = it })
-                    Text(stringResource(R.string.event_recurring_yearly), style = MaterialTheme.typography.bodyMedium)
-                }
             }
         }
-    )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = label,
+            onValueChange = { label = it },
+            label = { Text("Titre (optionnel)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        DatePicker(state = datePickerState, showModeToggle = false)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = recurring, onCheckedChange = { recurring = it })
+            Text(stringResource(R.string.event_recurring_yearly), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
 }
