@@ -9,24 +9,40 @@ data class Couple(
 
 object EventCategory {
     const val ENSEMBLE = "ENSEMBLE"
+    const val DEPART = "DEPART"
     const val ANNIVERSAIRE = "ANNIVERSAIRE"
+    const val VOYAGE = "VOYAGE"
     const val RENDEZVOUS = "RENDEZVOUS"
     const val AUTRE = "AUTRE"
 
-    val all = listOf(ENSEMBLE, ANNIVERSAIRE, RENDEZVOUS, AUTRE)
+    val all = listOf(ENSEMBLE, DEPART, ANNIVERSAIRE, VOYAGE, RENDEZVOUS, AUTRE)
 
     fun emoji(category: String): String = when (category) {
         ENSEMBLE -> "💕"
+        DEPART -> "✈️"
         ANNIVERSAIRE -> "🎂"
+        VOYAGE -> "🧳"
         RENDEZVOUS -> "📅"
         else -> "⭐"
     }
 
     fun label(category: String): String = when (category) {
         ENSEMBLE -> "Ensemble"
+        DEPART -> "Départ"
         ANNIVERSAIRE -> "Anniversaire"
+        VOYAGE -> "Voyage"
         RENDEZVOUS -> "Rendez-vous"
         else -> "Autre"
+    }
+
+    /** Couleur associée, utilisée pour les puces du calendrier. */
+    fun colorHex(category: String): Long = when (category) {
+        ENSEMBLE -> 0xFFE05271
+        DEPART -> 0xFF5B8DEF
+        ANNIVERSAIRE -> 0xFFE0A458
+        VOYAGE -> 0xFF4CAF88
+        RENDEZVOUS -> 0xFF9C6ADE
+        else -> 0xFF9E9E9E
     }
 }
 

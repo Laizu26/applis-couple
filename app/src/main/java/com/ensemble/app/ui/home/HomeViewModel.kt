@@ -1,5 +1,6 @@
 package com.ensemble.app.ui.home
 
+import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ensemble.app.data.AppContainer
@@ -7,7 +8,6 @@ import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.CalendarEvent
 import com.ensemble.app.data.model.DecryptedEvent
 import com.ensemble.app.data.model.EventCategory
-import androidx.glance.appwidget.updateAll
 import com.ensemble.app.widget.CountdownWidget
 import com.ensemble.app.widget.WidgetPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,8 +15,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+private val TRACKED_CATEGORIES = setOf(EventCategory.ENSEMBLE, EventCategory.DEPART)
+
 data class HomeUiState(
     val featuredEventId: String? = null,
+    val category: String = EventCategory.ENSEMBLE,
     val label: String? = null,
     val meetingDateMillis: Long? = null
 )
@@ -51,17 +54,21 @@ class HomeViewModel(
         }
         viewModelScope.launch {
             container.eventRepository.observeEvents(coupleId).collect { events ->
-                val ensembleEvents = events
-                    .filter { it.category == EventCategory.ENSEMBLE }
+                val tracked = events
+                    .filter { it.category in TRACKED_CATEGORIES }
                     .mapNotNull(::decrypt)
 
                 val now = System.currentTimeMillis()
-                val featured = ensembleEvents.filter { it.dateMillis >= now }.minByOrNull { it.dateMillis }
-                    ?: ensembleEvents.filter { it.dateMillis < now }.maxByOrNull { it.dateMillis }
+                // Priorité au plus proche événement à venir (Ensemble OU Départ) ; sinon,
+                // dernière fois qu'on a été "Ensemble" dans le passé.
+                val featured = tracked.filter { it.dateMillis >= now }.minByOrNull { it.dateMillis }
+                    ?: tracked.filter { it.category == EventCategory.ENSEMBLE && it.dateMillis < now }
+                        .maxByOrNull { it.dateMillis }
 
                 _uiState.update { current ->
                     current.copy(
                         featuredEventId = featured?.id,
+                        category = featured?.category ?: EventCategory.ENSEMBLE,
                         label = featured?.title,
                         meetingDateMillis = featured?.dateMillis
                     )
@@ -83,8 +90,8 @@ class HomeViewModel(
         DecryptedEvent(event.id, event.authorId, event.category, title, event.dateMillis, event.createdAt)
     }.getOrNull()
 
-    /** Crée ou met à jour (si édition) l'événement "Ensemble" mis en avant sur l'accueil. */
-    fun setMeeting(label: String, dateMillis: Long) {
+    /** Crée ou met à jour (si édition) l'événement mis en avant sur l'accueil (Ensemble ou Départ). */
+    fun setMeeting(category: String, label: String, dateMillis: Long) {
         viewModelScope.launch {
             val payload = container.cryptoManager.encryptText(label)
             runCatching {
@@ -93,7 +100,7 @@ class HomeViewModel(
                     CalendarEvent(
                         id = _uiState.value.featuredEventId.orEmpty(),
                         authorId = myUid,
-                        category = EventCategory.ENSEMBLE,
+                        category = category,
                         titleIv = payload.ivBase64,
                         titleCipher = payload.cipherTextBase64,
                         dateMillis = dateMillis,

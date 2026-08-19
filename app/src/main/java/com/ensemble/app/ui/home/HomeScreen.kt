@@ -1,6 +1,8 @@
 package com.ensemble.app.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -15,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
+import com.ensemble.app.data.model.EventCategory
 import com.ensemble.app.ui.theme.RoseContainer
 import com.ensemble.app.ui.theme.RosePrimary
 import com.ensemble.app.util.countdownTo
@@ -22,6 +25,8 @@ import com.ensemble.app.util.currentTimeInZone
 import com.ensemble.app.util.formatDate
 import com.ensemble.app.util.hourOffsetFromLocal
 import kotlinx.coroutines.delay
+
+private val HOME_CATEGORIES = listOf(EventCategory.ENSEMBLE, EventCategory.DEPART)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +71,11 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 }
             } else {
                 val countdown = countdownTo(dateMillis)
+                val defaultTitleRes = when {
+                    countdown.isPast -> R.string.home_countdown_since
+                    uiState.category == EventCategory.DEPART -> R.string.home_countdown_departure
+                    else -> R.string.home_countdown_until
+                }
                 Card(
                     shape = MaterialTheme.shapes.extraLarge,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -73,12 +83,26 @@ fun HomeScreen(viewModel: HomeViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(vertical = 40.dp, horizontal = 24.dp),
+                        modifier = Modifier.padding(vertical = 32.dp, horizontal = 24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50))
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(EventCategory.emoji(uiState.category), style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                EventCategory.label(uiState.category),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
                         Text(
-                            text = uiState.label?.takeIf { it.isNotBlank() }
-                                ?: stringResource(if (countdown.isPast) R.string.home_countdown_since else R.string.home_countdown_until),
+                            text = uiState.label?.takeIf { it.isNotBlank() } ?: stringResource(defaultTitleRes),
                             style = MaterialTheme.typography.titleLarge,
                             color = RosePrimary
                         )
@@ -156,11 +180,12 @@ fun HomeScreen(viewModel: HomeViewModel) {
 
     if (showEditDialog) {
         EditMeetingDialog(
+            initialCategory = uiState.category,
             initialLabel = uiState.label.orEmpty(),
             initialDateMillis = uiState.meetingDateMillis,
             onDismiss = { showEditDialog = false },
-            onConfirm = { label, dateMillis ->
-                viewModel.setMeeting(label, dateMillis)
+            onConfirm = { category, label, dateMillis ->
+                viewModel.setMeeting(category, label, dateMillis)
                 showEditDialog = false
             }
         )
@@ -170,11 +195,13 @@ fun HomeScreen(viewModel: HomeViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditMeetingDialog(
+    initialCategory: String,
     initialLabel: String,
     initialDateMillis: Long?,
     onDismiss: () -> Unit,
-    onConfirm: (String, Long) -> Unit
+    onConfirm: (category: String, label: String, dateMillis: Long) -> Unit
 ) {
+    var category by remember { mutableStateOf(initialCategory) }
     var label by remember { mutableStateOf(initialLabel) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialDateMillis)
 
@@ -184,13 +211,23 @@ private fun EditMeetingDialog(
             TextButton(
                 onClick = {
                     val selected = datePickerState.selectedDateMillis
-                    if (selected != null) onConfirm(label, selected)
+                    if (selected != null) onConfirm(category, label, selected)
                 }
             ) { Text(stringResource(R.string.pairing_confirm)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.messages_cancel)) } },
         text = {
             Column {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HOME_CATEGORIES.forEach { cat ->
+                        FilterChip(
+                            selected = category == cat,
+                            onClick = { category = cat },
+                            label = { Text(EventCategory.emoji(cat) + " " + EventCategory.label(cat)) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
