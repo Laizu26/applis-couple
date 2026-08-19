@@ -1,4 +1,5 @@
 const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+const {onObjectFinalized} = require("firebase-functions/v2/storage");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
 const {getMessaging} = require("firebase-admin/messaging");
@@ -36,3 +37,29 @@ exports.onNewMessage = onDocumentCreated(
     });
   }
 );
+
+// Déclenché à chaque nouvel APK déposé dans app-releases/ sur Storage. Le nom du fichier doit
+// suivre le format "{versionCode}_{versionName}.apk" (ex: "2_1.1.apk") : la fonction met alors
+// à jour app_meta/update toute seule, ce qui fait apparaître la bannière de mise à jour dans
+// l'app. Aucune manipulation Firestore à faire à la main.
+exports.onNewAppRelease = onObjectFinalized(async (event) => {
+  const filePath = event.data.name;
+  if (!filePath || !filePath.startsWith("app-releases/")) return;
+
+  const fileName = filePath.split("/").pop();
+  const match = fileName.match(/^(\d+)_(.+)\.apk$/);
+  if (!match) {
+    console.warn(
+      `Nom de fichier ignoré: "${fileName}". Format attendu: {versionCode}_{versionName}.apk (ex: 2_1.1.apk)`
+    );
+    return;
+  }
+
+  const [, versionCode, versionName] = match;
+  await getFirestore().collection("app_meta").doc("update").set({
+    versionCode: parseInt(versionCode, 10),
+    versionName,
+    apkStoragePath: filePath,
+    notes: "",
+  });
+});
