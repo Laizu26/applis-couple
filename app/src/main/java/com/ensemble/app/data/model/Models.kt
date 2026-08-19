@@ -136,9 +136,22 @@ data class DecryptedAlbum(
 )
 
 /**
+ * Une photo attachée à un passage du journal. Correspond à une vraie photo de la galerie
+ * partagée (même id, même storagePath) : elle apparaît donc à la fois dans le journal ET dans
+ * l'onglet Photos, sans double stockage.
+ */
+data class JournalPhotoRef(
+    val id: String = "",
+    val uploaderId: String = "",
+    val storagePath: String = "",
+    val ivBase64: String = "",
+    val timestamp: Long = 0L
+)
+
+/**
  * Une entrée de journal par jour, partagée par le couple : chaque partenaire a son propre
- * passage (texte chiffré séparément), plus un passage "commun" que les deux peuvent modifier.
- * L'id du document est la date au format yyyy-MM-dd.
+ * passage (texte + photos, chiffrés séparément), plus un passage "commun" que les deux peuvent
+ * modifier. L'id du document est la date au format yyyy-MM-dd.
  */
 data class JournalDay(
     val id: String = "",
@@ -149,8 +162,9 @@ data class JournalDay(
     val user2TextCipher: String? = null,
     val commonTextIv: String? = null,
     val commonTextCipher: String? = null,
-    val photoStoragePath: String? = null,
-    val photoIvBase64: String? = null,
+    val user1Photos: List<JournalPhotoRef> = emptyList(),
+    val user2Photos: List<JournalPhotoRef> = emptyList(),
+    val commonPhotos: List<JournalPhotoRef> = emptyList(),
     val updatedAt: Long = 0L
 )
 
@@ -160,8 +174,9 @@ data class DecryptedJournalDay(
     val myText: String,
     val partnerText: String,
     val commonText: String,
-    val photoStoragePath: String?,
-    val photoIvBase64: String?
+    val myPhotos: List<JournalPhotoRef>,
+    val partnerPhotos: List<JournalPhotoRef>,
+    val commonPhotos: List<JournalPhotoRef>
 )
 
 /** Référence la dernière version publiée de l'app (doc public app_meta/update, lecture seule côté client). */

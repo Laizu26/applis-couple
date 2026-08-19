@@ -8,6 +8,7 @@ import com.ensemble.app.data.AppContainer
 import com.ensemble.app.data.crypto.EncryptedPayload
 import com.ensemble.app.data.model.DecryptedJournalDay
 import com.ensemble.app.data.model.JournalDay
+import com.ensemble.app.data.model.JournalPhotoRef
 import com.ensemble.app.util.compressImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,8 +88,9 @@ class JournalViewModel(
             myText = decryptOrEmpty(myIv, myCipher),
             partnerText = decryptOrEmpty(partnerIv, partnerCipher),
             commonText = decryptOrEmpty(day.commonTextIv, day.commonTextCipher),
-            photoStoragePath = day.photoStoragePath,
-            photoIvBase64 = day.photoIvBase64
+            myPhotos = if (isUser1) day.user1Photos else day.user2Photos,
+            partnerPhotos = if (isUser1) day.user2Photos else day.user1Photos,
+            commonPhotos = day.commonPhotos
         )
     }.getOrNull()
 
@@ -110,20 +112,26 @@ class JournalViewModel(
         }
     }
 
-    suspend fun loadDayBitmap(day: DecryptedJournalDay): ImageBitmap? {
-        val path = day.photoStoragePath ?: return null
-        val iv = day.photoIvBase64 ?: return null
-        return container.imageLoader.loadBitmap(path, iv)
+    suspend fun loadPhotoBitmap(photo: JournalPhotoRef): ImageBitmap? =
+        container.imageLoader.loadBitmap(photo.storagePath, photo.ivBase64)
+
+    /** Ajoutée à mon passage du jour ET, en même temps, à la galerie partagée de l'onglet Photos. */
+    fun addMyPhoto(dateKey: String, dateMillis: Long, rawBytes: ByteArray) {
+        addPhoto(dateKey, dateMillis, if (isUser1) "user1Photos" else "user2Photos", rawBytes)
     }
 
-    fun setDayPhoto(dateKey: String, dateMillis: Long, rawBytes: ByteArray) {
+    fun addCommonPhoto(dateKey: String, dateMillis: Long, rawBytes: ByteArray) {
+        addPhoto(dateKey, dateMillis, "commonPhotos", rawBytes)
+    }
+
+    private fun addPhoto(dateKey: String, dateMillis: Long, field: String, rawBytes: ByteArray) {
         _isSavingPhoto.value = true
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
                     val (iv, cipherBytes) = container.cryptoManager.encryptBytes(compressImage(rawBytes))
-                    container.journalRepository.uploadDayPhoto(
-                        coupleId, dateKey, dateMillis, Base64.encodeToString(iv, Base64.NO_WRAP), cipherBytes
+                    container.journalRepository.addPhoto(
+                        coupleId, dateKey, dateMillis, field, myUid, Base64.encodeToString(iv, Base64.NO_WRAP), cipherBytes
                     )
                 }
             }
@@ -131,7 +139,15 @@ class JournalViewModel(
         }
     }
 
-    fun removeDayPhoto(dateKey: String, storagePath: String?) {
-        viewModelScope.launch { runCatching { container.journalRepository.removeDayPhoto(coupleId, dateKey, storagePath) } }
+    fun removeMyPhoto(dateKey: String, photo: JournalPhotoRef) {
+        removePhoto(dateKey, if (isUser1) "user1Photos" else "user2Photos", photo)
+    }
+
+    fun removeCommonPhoto(dateKey: String, photo: JournalPhotoRef) {
+        removePhoto(dateKey, "commonPhotos", photo)
+    }
+
+    private fun removePhoto(dateKey: String, field: String, photo: JournalPhotoRef) {
+        viewModelScope.launch { runCatching { container.journalRepository.removePhotoRef(coupleId, dateKey, field, photo) } }
     }
 }

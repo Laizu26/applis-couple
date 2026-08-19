@@ -84,12 +84,12 @@ service cloud.firestore {
           (coupleData(coupleId).user1Id == request.auth.uid &&
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(
              ['dateMillis', 'user1TextIv', 'user1TextCipher', 'commonTextIv', 'commonTextCipher',
-              'photoStoragePath', 'photoIvBase64', 'updatedAt']
+              'user1Photos', 'commonPhotos', 'updatedAt']
            )) ||
           (coupleData(coupleId).user2Id == request.auth.uid &&
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(
              ['dateMillis', 'user2TextIv', 'user2TextCipher', 'commonTextIv', 'commonTextCipher',
-              'photoStoragePath', 'photoIvBase64', 'updatedAt']
+              'user2Photos', 'commonPhotos', 'updatedAt']
            ))
         );
       }

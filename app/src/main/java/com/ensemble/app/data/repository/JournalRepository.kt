@@ -1,18 +1,21 @@
 package com.ensemble.app.data.repository
 
+import com.ensemble.app.data.model.CouplePhoto
 import com.ensemble.app.data.model.JournalDay
+import com.ensemble.app.data.model.JournalPhotoRef
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
-import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
 
 class JournalRepository(
     private val db: FirebaseFirestore,
-    private val storage: FirebaseStorage
+    private val photoRepository: PhotoRepository
 ) {
     private fun days(coupleId: String) =
         db.collection("couples").document(coupleId).collection("journalDays")
@@ -40,26 +43,48 @@ class JournalRepository(
         ).await()
     }
 
-    suspend fun uploadDayPhoto(coupleId: String, dateKey: String, dateMillis: Long, ivBase64: String, encryptedBytes: ByteArray) {
-        val storagePath = "couples/$coupleId/journal/$dateKey.enc"
-        storage.reference.child(storagePath).putBytes(encryptedBytes).await()
+    /**
+     * Ajoute une photo à un passage du jour. La photo est aussi créée comme une vraie photo de
+     * la galerie partagée (même storagePath/id) : elle apparaît donc automatiquement dans
+     * l'onglet Photos en plus du journal, sans double upload ni double chiffrement.
+     * [field] vaut "user1Photos", "user2Photos" ou "commonPhotos".
+     */
+    suspend fun addPhoto(
+        coupleId: String,
+        dateKey: String,
+        dateMillis: Long,
+        field: String,
+        uploaderId: String,
+        ivBase64: String,
+        encryptedBytes: ByteArray
+    ): JournalPhotoRef {
+        val photoId = UUID.randomUUID().toString()
+        val timestamp = System.currentTimeMillis()
+        photoRepository.uploadPhoto(
+            coupleId,
+            CouplePhoto(id = photoId, uploaderId = uploaderId, ivBase64 = ivBase64, timestamp = timestamp),
+            encryptedBytes
+        )
+        val ref = JournalPhotoRef(
+            id = photoId,
+            uploaderId = uploaderId,
+            storagePath = "couples/$coupleId/photos/$photoId.enc",
+            ivBase64 = ivBase64,
+            timestamp = timestamp
+        )
         days(coupleId).document(dateKey).set(
             mapOf(
                 "dateMillis" to dateMillis,
-                "photoStoragePath" to storagePath,
-                "photoIvBase64" to ivBase64,
-                "updatedAt" to System.currentTimeMillis()
+                field to FieldValue.arrayUnion(ref),
+                "updatedAt" to timestamp
             ),
             SetOptions.merge()
         ).await()
+        return ref
     }
 
-    suspend fun removeDayPhoto(coupleId: String, dateKey: String, storagePath: String?) {
-        if (!storagePath.isNullOrBlank()) {
-            runCatching { storage.reference.child(storagePath).delete().await() }
-        }
-        days(coupleId).document(dateKey).update(
-            mapOf("photoStoragePath" to null, "photoIvBase64" to null)
-        ).await()
+    /** Détache uniquement la photo de ce passage du journal ; elle reste dans la galerie partagée. */
+    suspend fun removePhotoRef(coupleId: String, dateKey: String, field: String, ref: JournalPhotoRef) {
+        days(coupleId).document(dateKey).update(field, FieldValue.arrayRemove(ref)).await()
     }
 }

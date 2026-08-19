@@ -25,7 +25,7 @@ class AppContainer(context: Context) {
     val messageRepository = MessageRepository(Firebase.firestore)
     val photoRepository = PhotoRepository(Firebase.firestore, Firebase.storage)
     val eventRepository = EventRepository(Firebase.firestore)
-    val journalRepository = JournalRepository(Firebase.firestore, Firebase.storage)
+    val journalRepository = JournalRepository(Firebase.firestore, photoRepository)
     val updateRepository = UpdateRepository(Firebase.firestore, Firebase.storage)
     val imageLoader = EncryptedImageLoader(photoRepository, cryptoManager)
 }

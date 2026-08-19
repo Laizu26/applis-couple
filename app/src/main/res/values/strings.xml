@@ -105,6 +105,7 @@
     <string name="journal_add">Écrire aujourd\'hui</string>
     <string name="journal_add_photo">Ajouter une photo</string>
     <string name="journal_remove_photo">Retirer la photo ?</string>
+    <string name="journal_remove_photo_explain">Elle restera dans la galerie de l\'onglet Photos, juste retirée de ce passage.</string>
     <string name="journal_section_mine">Toi</string>
     <string name="journal_section_common">Commun</string>
     <string name="journal_section_empty">Rien pour l\'instant</string>
