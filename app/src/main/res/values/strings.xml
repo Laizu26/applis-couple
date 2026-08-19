@@ -118,6 +118,8 @@
     <string name="journal_section_common">Commun</string>
     <string name="journal_section_empty">Rien pour l\'instant</string>
     <string name="journal_partner_generic">Ton/ta partenaire</string>
+    <string name="journal_today">Aujourd\'hui</string>
+    <string name="journal_pick_date">Choisir une date</string>
 
     <string name="nav_home">Accueil</string>
     <string name="nav_messages">Messages</string>

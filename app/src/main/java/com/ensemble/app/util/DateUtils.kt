@@ -58,3 +58,9 @@ fun pickerMillisToLocalDayMillis(pickerMillis: Long): Long {
     val date = java.time.Instant.ofEpochMilli(pickerMillis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
     return date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 }
+
+fun pickerMillisToLocalDate(pickerMillis: Long): java.time.LocalDate =
+    java.time.Instant.ofEpochMilli(pickerMillis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+
+fun java.time.LocalDate.toStartOfDayMillis(): Long =
+    atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()

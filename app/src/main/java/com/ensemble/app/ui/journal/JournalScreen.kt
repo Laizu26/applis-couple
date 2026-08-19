@@ -13,20 +13,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,7 +52,13 @@ import com.ensemble.app.ui.components.FormDialog
 import com.ensemble.app.ui.components.PhotoSourceMenu
 import com.ensemble.app.ui.components.RichTextToolbar
 import com.ensemble.app.util.formatDate
+import com.ensemble.app.util.localDateToPickerMillis
 import com.ensemble.app.util.parseMarkup
+import com.ensemble.app.util.pickerMillisToLocalDate
+import com.ensemble.app.util.toStartOfDayMillis
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 private enum class SectionKind { MINE, COMMON }
 private data class EditTarget(val dateKey: String, val dateMillis: Long, val kind: SectionKind, val initialText: String)
@@ -64,84 +70,123 @@ private data class PhotoViewTarget(
     val canRemove: Boolean
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+private fun emptyDay(dateKey: String, dateMillis: Long) = DecryptedJournalDay(
+    id = dateKey,
+    dateMillis = dateMillis,
+    myText = "",
+    partnerText = "",
+    commonText = "",
+    myPhotos = emptyList(),
+    partnerPhotos = emptyList(),
+    commonPhotos = emptyList()
+)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun JournalScreen(viewModel: JournalViewModel, onBack: () -> Unit = {}) {
     val days by viewModel.days.collectAsStateWithLifecycle()
     val partnerLabel by viewModel.partnerLabel.collectAsStateWithLifecycle()
+    val daysByKey = remember(days) { days.associateBy { it.id } }
+    val scope = rememberCoroutineScope()
+
+    val anchorDate = remember { LocalDate.now().minusYears(10) }
+    val lastDate = remember { LocalDate.now().plusYears(5) }
+    val pageCount = remember { ChronoUnit.DAYS.between(anchorDate, lastDate).toInt() + 1 }
+    val todayPageIndex = remember { ChronoUnit.DAYS.between(anchorDate, LocalDate.now()).toInt() }
+    val pagerState = rememberPagerState(initialPage = todayPageIndex) { pageCount }
+
+    val currentDate by remember { derivedStateOf { anchorDate.plusDays(pagerState.currentPage.toLong()) } }
+    val currentDateKey = currentDate.toDateKey()
+    val currentDateMillis = currentDate.toStartOfDayMillis()
+    val currentDay = daysByKey[currentDateKey] ?: emptyDay(currentDateKey, currentDateMillis)
+    val partnerLabelResolved = partnerLabel?.takeIf { it.isNotBlank() } ?: stringResource(R.string.journal_partner_generic)
+
     var editingSection by remember { mutableStateOf<EditTarget?>(null) }
     var photoViewTarget by remember { mutableStateOf<PhotoViewTarget?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.journal_title)) },
+                title = { Text(formatDate(currentDateMillis)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back))
+                    }
+                },
+                actions = {
+                    if (pagerState.currentPage != todayPageIndex) {
+                        IconButton(onClick = { scope.launch { pagerState.animateScrollToPage(todayPageIndex) } }) {
+                            Icon(Icons.Default.Today, contentDescription = stringResource(R.string.journal_today))
+                        }
+                    }
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = stringResource(R.string.journal_pick_date))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                val todayKey = viewModel.todayDateKey()
-                val existingToday = days.find { it.id == todayKey }
-                editingSection = EditTarget(
-                    dateKey = todayKey,
-                    dateMillis = viewModel.todayDateMillis(),
-                    kind = SectionKind.MINE,
-                    initialText = existingToday?.myText.orEmpty()
-                )
+                editingSection = EditTarget(currentDateKey, currentDateMillis, SectionKind.MINE, currentDay.myText)
             }) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.journal_add))
             }
         }
     ) { padding ->
-        if (days.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Default.AutoStories,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(56.dp)
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.journal_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize().padding(padding)
-            ) {
-                items(days, key = { it.id }) { day ->
-                    DayCard(
-                        day = day,
-                        partnerLabel = partnerLabel?.takeIf { it.isNotBlank() } ?: stringResource(R.string.journal_partner_generic),
-                        loadBitmap = { photo -> viewModel.loadPhotoBitmap(photo) },
-                        onEditMine = {
-                            editingSection = EditTarget(day.id, day.dateMillis, SectionKind.MINE, day.myText)
-                        },
-                        onEditCommon = {
-                            editingSection = EditTarget(day.id, day.dateMillis, SectionKind.COMMON, day.commonText)
-                        },
-                        onAddMyPhoto = { bytes -> viewModel.addMyPhoto(day.id, day.dateMillis, bytes) },
-                        onAddCommonPhoto = { bytes -> viewModel.addCommonPhoto(day.id, day.dateMillis, bytes) },
-                        onPhotoClick = { field, photos, index ->
-                            photoViewTarget = PhotoViewTarget(day.id, field, photos, index, canRemove = field != "partner")
-                        }
-                    )
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize().padding(padding)
+        ) { page ->
+            val pageDate = anchorDate.plusDays(page.toLong())
+            val pageKey = pageDate.toDateKey()
+            val pageMillis = pageDate.toStartOfDayMillis()
+            val day = daysByKey[pageKey] ?: emptyDay(pageKey, pageMillis)
+            JournalPage(
+                day = day,
+                partnerLabel = partnerLabelResolved,
+                loadBitmap = { photo -> viewModel.loadPhotoBitmap(photo) },
+                onEditMine = { editingSection = EditTarget(day.id, day.dateMillis, SectionKind.MINE, day.myText) },
+                onEditCommon = { editingSection = EditTarget(day.id, day.dateMillis, SectionKind.COMMON, day.commonText) },
+                onAddMyPhoto = { bytes -> viewModel.addMyPhoto(day.id, day.dateMillis, bytes) },
+                onAddCommonPhoto = { bytes -> viewModel.addCommonPhoto(day.id, day.dateMillis, bytes) },
+                onPhotoClick = { field, photos, index ->
+                    photoViewTarget = PhotoViewTarget(day.id, field, photos, index, canRemove = field != "partner")
+                }
+            )
+        }
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = localDateToPickerMillis(currentDate),
+            selectableDates = remember(anchorDate, lastDate) {
+                object : SelectableDates {
+                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                        val date = pickerMillisToLocalDate(utcTimeMillis)
+                        return !date.isBefore(anchorDate) && !date.isAfter(lastDate)
+                    }
                 }
             }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDatePicker = false
+                    val millis = datePickerState.selectedDateMillis
+                    if (millis != null) {
+                        val picked = pickerMillisToLocalDate(millis)
+                        val target = ChronoUnit.DAYS.between(anchorDate, picked).toInt().coerceIn(0, pageCount - 1)
+                        scope.launch { pagerState.scrollToPage(target) }
+                    }
+                }) { Text(stringResource(R.string.pairing_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.messages_cancel)) }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 
@@ -175,7 +220,7 @@ fun JournalScreen(viewModel: JournalViewModel, onBack: () -> Unit = {}) {
 }
 
 @Composable
-private fun DayCard(
+private fun JournalPage(
     day: DecryptedJournalDay,
     partnerLabel: String,
     loadBitmap: suspend (JournalPhotoRef) -> ImageBitmap?,
@@ -185,41 +230,41 @@ private fun DayCard(
     onAddCommonPhoto: (ByteArray) -> Unit,
     onPhotoClick: (field: String, photos: List<JournalPhotoRef>, index: Int) -> Unit
 ) {
-    Card(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(formatDate(day.dateMillis), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(10.dp))
-
-            PassageSection(
-                label = stringResource(R.string.journal_section_mine),
-                text = day.myText,
-                photos = day.myPhotos,
-                onEditText = onEditMine,
-                onAddPhoto = onAddMyPhoto,
-                loadBitmap = loadBitmap,
-                onPhotoClick = { index -> onPhotoClick("mine", day.myPhotos, index) }
-            )
-            Spacer(Modifier.height(14.dp))
-            PassageSection(
-                label = partnerLabel,
-                text = day.partnerText,
-                photos = day.partnerPhotos,
-                onEditText = null,
-                onAddPhoto = null,
-                loadBitmap = loadBitmap,
-                onPhotoClick = { index -> onPhotoClick("partner", day.partnerPhotos, index) }
-            )
-            Spacer(Modifier.height(14.dp))
-            PassageSection(
-                label = stringResource(R.string.journal_section_common),
-                text = day.commonText,
-                photos = day.commonPhotos,
-                onEditText = onEditCommon,
-                onAddPhoto = onAddCommonPhoto,
-                loadBitmap = loadBitmap,
-                onPhotoClick = { index -> onPhotoClick("common", day.commonPhotos, index) }
-            )
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        PassageSection(
+            label = stringResource(R.string.journal_section_mine),
+            text = day.myText,
+            photos = day.myPhotos,
+            onEditText = onEditMine,
+            onAddPhoto = onAddMyPhoto,
+            loadBitmap = loadBitmap,
+            onPhotoClick = { index -> onPhotoClick("mine", day.myPhotos, index) }
+        )
+        Spacer(Modifier.height(14.dp))
+        PassageSection(
+            label = partnerLabel,
+            text = day.partnerText,
+            photos = day.partnerPhotos,
+            onEditText = null,
+            onAddPhoto = null,
+            loadBitmap = loadBitmap,
+            onPhotoClick = { index -> onPhotoClick("partner", day.partnerPhotos, index) }
+        )
+        Spacer(Modifier.height(14.dp))
+        PassageSection(
+            label = stringResource(R.string.journal_section_common),
+            text = day.commonText,
+            photos = day.commonPhotos,
+            onEditText = onEditCommon,
+            onAddPhoto = onAddCommonPhoto,
+            loadBitmap = loadBitmap,
+            onPhotoClick = { index -> onPhotoClick("common", day.commonPhotos, index) }
+        )
     }
 }
 

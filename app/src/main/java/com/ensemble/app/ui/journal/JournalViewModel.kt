@@ -94,9 +94,6 @@ class JournalViewModel(
         )
     }.getOrNull()
 
-    fun todayDateKey(): String = LocalDate.now().toDateKey()
-    fun todayDateMillis(): Long = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
     fun saveMyText(dateKey: String, dateMillis: Long, text: String) {
         val field = if (isUser1) "user1Text" else "user2Text"
         viewModelScope.launch {
