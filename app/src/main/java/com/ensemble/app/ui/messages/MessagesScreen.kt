@@ -48,12 +48,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ensemble.app.R
 import com.ensemble.app.data.audio.VoiceRecorder
 import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.DecryptedMessage
 import com.ensemble.app.data.model.MessageType
+import com.ensemble.app.notifications.ConversationVisibilityTracker
 import com.ensemble.app.ui.components.FormDialog
 import com.ensemble.app.ui.components.PhotoSourceMenu
 import com.ensemble.app.ui.components.RichTextToolbar
@@ -136,6 +140,22 @@ fun MessagesScreen(viewModel: MessagesViewModel) {
         uiState.errorMessage?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.dismissError()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> ConversationVisibilityTracker.setVisible(true)
+                Lifecycle.Event.ON_PAUSE -> ConversationVisibilityTracker.setVisible(false)
+                else -> {}
+            }
+        }
+        val lifecycle = ProcessLifecycleOwner.get().lifecycle
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            ConversationVisibilityTracker.setVisible(false)
         }
     }
 

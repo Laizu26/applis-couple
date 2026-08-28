@@ -19,6 +19,14 @@ const val CHANNEL_ID = "ensemble_messages"
  * Reçoit les notifications push envoyées par la Cloud Function lors d'un nouveau message.
  * Le contenu réel des messages est chiffré et n'est jamais inclus dans la notification :
  * seul un titre générique ("Nouveau message 💌") est affiché.
+ *
+ * La Cloud Function envoie un message FCM "data" pur (pas de bloc "notification") : c'est
+ * volontaire. Un message "notification" est affiché directement par le système quand l'app est
+ * en arrière-plan ou fermée, SANS jamais passer par onMessageReceived — ce qui rendait le
+ * comportement incohérent entre premier plan et arrière-plan (canal, icône, ouverture au tap...
+ * tout différait). En "data" pur, onMessageReceived est systématiquement appelé quel que soit
+ * l'état de l'app, donc l'affichage est toujours le même, et on peut aussi choisir de ne rien
+ * afficher si la conversation est déjà ouverte à l'écran.
  */
 class EnsembleMessagingService : FirebaseMessagingService() {
 
@@ -31,8 +39,9 @@ class EnsembleMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        val title = message.notification?.title ?: message.data["title"] ?: getString(R.string.app_name)
-        val body = message.notification?.body ?: message.data["body"] ?: ""
+        if (message.data["type"] == "message" && ConversationVisibilityTracker.isVisible()) return
+        val title = message.data["title"] ?: getString(R.string.app_name)
+        val body = message.data["body"] ?: ""
         showNotification(title, body)
     }
 

@@ -28,11 +28,20 @@ exports.onNewMessage = onDocumentCreated(
     const token = recipientDoc.data()?.fcmToken;
     if (!token) return;
 
+    // Message "data" pur (pas de bloc "notification") : voir le commentaire dans
+    // EnsembleMessagingService.kt côté app pour la raison — ça garantit que l'app affiche
+    // toujours la notif elle-même, de façon identique, que l'app soit ouverte, en arrière-plan
+    // ou fermée. La priorité "high" est nécessaire pour un message data pur, sinon il peut être
+    // retardé ou pas livré tant que l'app est en arrière-plan.
     await getMessaging().send({
       token,
-      notification: {
+      data: {
+        type: "message",
         title: "💌 Nouveau message",
         body: "Ouvre l'app pour lire ✨",
+      },
+      android: {
+        priority: "high",
       },
     });
   }
