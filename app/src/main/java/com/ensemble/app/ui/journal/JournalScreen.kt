@@ -51,6 +51,7 @@ import com.ensemble.app.data.model.JournalPhotoRef
 import com.ensemble.app.ui.components.FormDialog
 import com.ensemble.app.ui.components.PhotoSourceMenu
 import com.ensemble.app.ui.components.RichTextToolbar
+import com.ensemble.app.ui.components.ZoomableImage
 import com.ensemble.app.util.formatDate
 import com.ensemble.app.util.localDateToPickerMillis
 import com.ensemble.app.util.parseMarkup
@@ -430,12 +431,7 @@ private fun FullScreenJournalPhotoPagerDialog(
                 LaunchedEffect(pagePhoto.id) { pageBitmap = loadBitmap(pagePhoto) }
                 val current = pageBitmap
                 if (current != null) {
-                    Image(
-                        bitmap = current,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize().clickable(onClick = onDismiss)
-                    )
+                    ZoomableImage(bitmap = current, onTap = onDismiss, modifier = Modifier.fillMaxSize())
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()

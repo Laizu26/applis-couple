@@ -47,6 +47,7 @@ import com.ensemble.app.data.media.MediaSaver
 import com.ensemble.app.data.model.CouplePhoto
 import com.ensemble.app.data.model.DecryptedAlbum
 import com.ensemble.app.ui.components.PhotoSourceMenu
+import com.ensemble.app.ui.components.ZoomableImage
 
 @Composable
 fun PhotosScreen(viewModel: PhotosViewModel) {
@@ -315,14 +316,7 @@ private fun FullScreenPhotoPagerDialog(
                 LaunchedEffect(pagePhoto.id) { pageBitmap = viewModel.loadBitmap(pagePhoto) }
                 val current = pageBitmap
                 if (current != null) {
-                    Image(
-                        bitmap = current,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable(onClick = onDismiss)
-                    )
+                    ZoomableImage(bitmap = current, onTap = onDismiss, modifier = Modifier.fillMaxSize())
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()

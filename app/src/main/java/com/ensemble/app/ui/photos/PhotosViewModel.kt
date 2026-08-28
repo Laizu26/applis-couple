@@ -136,6 +136,9 @@ class PhotosViewModel(
     }
 
     fun deletePhoto(photo: CouplePhoto) {
-        viewModelScope.launch { runCatching { container.photoRepository.deletePhoto(coupleId, photo) } }
+        viewModelScope.launch {
+            runCatching { container.photoRepository.deletePhoto(coupleId, photo) }
+            container.imageLoader.evict(photo.storagePath)
+        }
     }
 }
